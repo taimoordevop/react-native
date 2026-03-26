@@ -126,12 +126,4 @@ Currently, the local gold testing industry is paralyzed by decade-old, offline l
 
 
 
----
-## 📦 Installation
 
-### Mobile
-```bash
-git clone <repository-url>
-cd GoldDesk
-npm install
-npx expo start
