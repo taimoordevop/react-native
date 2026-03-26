@@ -62,10 +62,6 @@ src/
 
 ```
 ---
-## 📫 Connect with the Architect
 
-* **Portfolio**: [asad-lime-six.vercel.app](https://asad-lime-six.vercel.app/)
-* **Contact**: [asadullah.devop@gmail.com](mailto:asadullah.devop@gmail.com)
-* **Status**: `MOBILITY_OPERATIONAL` 🟢
 
 ---
