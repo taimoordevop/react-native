@@ -1,4 +1,4 @@
-div align="center">
+<div align="center">
   <p><strong>SYSTEMS_STATUS: ACTIVE 🟢</strong></p>
   <p>Let's build something disruptive. 🚀</p>
 
