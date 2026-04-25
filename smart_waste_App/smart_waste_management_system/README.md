@@ -5,7 +5,7 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Realtime-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-**SWMS** is a high-performance, real-time IoT-integrated mobile solution designed to optimize urban waste collection. Featuring a tri-role ecosystem (Citizen, Worker, Admin), the app leverages live bin-level tracking, Google Maps route optimization, and automated task dispatching.
+**SWMS** is a high-performance, real-time IoT-integrated mobile solution designed to optimize urban waste collection. Featuring a tri-role ecosystem (Citizen, Worker, Admin), the app leverages live bin-level tracking, Google Maps route optimization, and automated task dispatching .
 
 ---
 
