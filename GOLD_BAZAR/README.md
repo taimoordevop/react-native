@@ -5,7 +5,7 @@
 
 ## 🚨 The Industry Problem: The "Legacy Desk" Trap
 
-Currently, the local gold testing industry is paralyzed by decade-old, offline legacy software. Jewelers are tied to their desks, unable to perform high-stakes testing or quote live pricing away from a fixed terminal. Furthermore, manually calculating gold purity using fluid physics and converting results into traditional market units (**Tola/Masha/Ratti**) is prone to human error—where a tiny decimal mistake can cost thousands.
+Currently, the local gold testing industry is paralyzed by decade-old, offline legacy software. Jewelers are tied to their desks, unable to perform high-stakes testing or quote live pricing away from a fixed terminal. Furthermore, manually calculating gold purity using fluid physics and converting results into traditional market units (**Tola/Masha/Ratti**) is prone to human error—where a tiny decimal mistake can cost thousands .
 
 ## 💡 The Solution: A Unified Cloud-Connected Ecosystem
 
