@@ -7,20 +7,26 @@ export const COLLECTION = {
   ORDERS: 'orders',
   PROOFS: 'proofs',
   REVIEWS: 'reviews',
+  REQUESTS: 'requests',
+  BOOKINGS: 'bookings',
   NOTIFICATIONS: 'notifications',
   CHATS: 'chats',
   MESSAGES: 'messages',
 } as const;
 
 export const ORDER_STATUS = {
-  PENDING: 'pending',
-  ACCEPTED: 'accepted',
+  PENDING_PAYMENT: 'pending_payment',
+  PAID: 'paid',
   IN_PROGRESS: 'in_progress',
   PROOF_SUBMITTED: 'proof_submitted',
+  VERIFIED: 'verified',
   COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
   DISPUTED: 'disputed',
+  CANCELLED: 'cancelled',
 } as const;
+
+/** Platform commission in PKR per 10,000 POP */
+export const COMMISSION_PER_10K = 40;
 
 export const LISTING_STATUS = {
   ACTIVE: 'active',
@@ -57,5 +63,8 @@ export const QUERY_KEYS = {
   ORDER: 'order',
   PROOFS: 'proofs',
   REVIEWS: 'reviews',
+  REQUESTS: 'requests',
+  REQUEST: 'request',
+  BOOKINGS: 'bookings',
   NOTIFICATIONS: 'notifications',
 } as const;

@@ -27,10 +27,10 @@ export default {
     //   resizeMode: 'contain',
     //   backgroundColor: '#0f172a',
     // },
-    updates: {
-      fallbackToCacheTimeout: 0,
+    androidStatusBar: {
+      backgroundColor: '#0f172a',
+      translucent: true,
     },
-    assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: false,
       bundleIdentifier: getBundleId(),
@@ -54,12 +54,12 @@ export default {
       package: getBundleId(),
       googleServicesFile: './google-services.json',
       permissions: [
-        'CAMERA',
-        'READ_MEDIA_IMAGES',
-        'READ_MEDIA_VIDEO',
-        'RECORD_AUDIO',
-        'READ_EXTERNAL_STORAGE',
-        'WRITE_EXTERNAL_STORAGE',
+        'android.permission.CAMERA',
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VIDEO',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
       ],
     },
     web: {

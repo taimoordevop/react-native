@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 
 import { authService } from '@/features/auth/services/authService';
-import { useAuthStore } from '@/features/auth/store/authStore';
 
 export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState('');
@@ -20,7 +19,6 @@ export default function RegisterScreen() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { setUser } = useAuthStore();
 
   const handleRegister = async () => {
     if (!displayName || !email || !password || !confirm) {
@@ -38,9 +36,10 @@ export default function RegisterScreen() {
     try {
       setLoading(true);
       setError(null);
-      const profile = await authService.signUp(email, password, displayName);
-      setUser(profile);
-      // New users always go through onboarding first
+      // signUp creates the Firebase user + Firestore doc.
+      // AuthProvider's onAuthStateChanged will fetch the profile and update the store.
+      await authService.signUp(email, password, displayName);
+      // New users always go through onboarding first.
       router.replace('/(auth)/onboarding/role-select');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');

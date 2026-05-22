@@ -48,10 +48,15 @@ export default function PubgSetupScreen() {
         onboardingCompleted: true,
       });
       // Update local Zustand store
-      setUser({ ...user, pubgId: pubgId.trim(), pubgNickname: pubgNickname.trim() });
+      const updatedUser = { ...user, pubgId: pubgId.trim(), pubgNickname: pubgNickname.trim() };
+      setUser(updatedUser);
       setOnboardingCompleted();
-      // Navigate to main app
-      router.replace('/(tabs)');
+      // Navigate to role-specific dashboard
+      const role = updatedUser.role;
+      if (role === 'admin') router.replace('/(admin)/dashboard' as never);
+      else if (role === 'seller') router.replace('/(seller)/dashboard' as never);
+      else if (role === 'supplier') router.replace('/(supplier)/dashboard' as never);
+      else router.replace('/(buyer)/dashboard' as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile. Please try again.');
     } finally {

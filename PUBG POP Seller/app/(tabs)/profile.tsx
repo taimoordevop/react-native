@@ -19,9 +19,10 @@ import type { UserRole } from '@/shared/types';
 
 /** Role badge config — PUBG dark theme colors */
 const ROLE_BADGE: Record<UserRole, { label: string; bg: string; text: string }> = {
-  buyer: { label: 'Buyer', bg: 'bg-blue-500/20', text: 'text-blue-400' },
-  supplier: { label: 'Supplier', bg: 'bg-green-500/20', text: 'text-green-400' },
-  admin: { label: 'Admin', bg: 'bg-purple-500/20', text: 'text-purple-400' },
+  buyer:    { label: 'Buyer',    bg: 'bg-blue-500/20',   text: 'text-blue-400' },
+  supplier: { label: 'Supplier', bg: 'bg-green-500/20',  text: 'text-green-400' },
+  seller:   { label: 'Seller',   bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
+  admin:    { label: 'Admin',    bg: 'bg-purple-500/20', text: 'text-purple-400' },
 };
 
 export default function ProfileScreen() {

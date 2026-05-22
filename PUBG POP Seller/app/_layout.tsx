@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import '../global.css';
+import '../src/global.css';
 import { AuthProvider } from '@/features/auth/providers/AuthProvider';
 import { queryClient } from '@/lib/queryClient';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
@@ -35,8 +35,17 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="index" />
                 <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+                {/* Role-specific navigation groups */}
+                <Stack.Screen name="(buyer)" options={{ animation: 'fade' }} />
+                <Stack.Screen name="(supplier)" options={{ animation: 'fade' }} />
+                <Stack.Screen name="(seller)" options={{ animation: 'fade' }} />
+                <Stack.Screen name="(admin)" options={{ animation: 'fade' }} />
+                {/* Legacy (tabs) kept for backwards compat / create-listing flow */}
                 <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-                <Stack.Screen name="listing" options={{ animation: 'slide_from_right' }} />
+                {/* Shared modal/stack screens accessible from any role */}
+                <Stack.Screen name="listing/[id]" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="orders/[id]" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="orders/proof-upload" options={{ animation: 'slide_from_bottom' }} />
               </Stack>
             </AuthProvider>
           </QueryClientProvider>

@@ -15,36 +15,47 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == uid;
     }
 
-    /** Returns true if the authenticated user has the 'admin' role */
+    /** Returns true if the authenticated user has the 'admin' role. */
     function isAdmin() {
       return isAuth() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    /** Only allow fields that are in the permitted set (no role/reputation escalation) */
+    /** Returns true if the authenticated user has the 'seller' role. */
+    function isSeller() {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
+    }
+
+    /** Only allow fields that are in the permitted set (no reputation escalation) */
     function onlyAllowedFields(allowed) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
 
     // ── Users collection ──────────────────────────────────────────────────────
     match /users/{uid} {
-      // Any authenticated user can read their own document; admins can read all
+      // Owner can always read their own doc; admins can read all
       allow read: if isOwner(uid) || isAdmin();
 
-      // Only the owner can create their own document (set during signUp)
+      // Only the owner can create their own document (written during signUp)
       allow create: if isOwner(uid);
 
-      // Owner can update only safe fields — cannot self-promote role or reputation
+      // Owner can update safe profile fields + role (needed for onboarding role selection)
+      // Reputation, totalPop, isVerified, isBanned are server-only fields
       allow update: if isOwner(uid) &&
         onlyAllowedFields([
-          'displayName', 'photoURL', 'bio', 'pubgId', 'pubgNickname',
-          'pubgServer', 'fcmToken', 'onboardingCompleted', 'updatedAt'
+          'displayName', 'photoURL', 'bio',
+          'pubgId', 'pubgNickname', 'pubgServer',
+          'fcmToken', 'onboardingCompleted', 'updatedAt',
+          'role'
         ]);
 
-      // Admins can update any user field (for moderation)
+      // Admins can update any user field (for moderation / manual role assignment)
       allow update: if isAdmin();
 
-      // No one can delete a user document from the client
+      // No client-side deletes
       allow delete: if false;
     }
 
@@ -59,24 +70,24 @@ service cloud.firestore {
 
       // Only the listing owner or admin can update/delete
       allow update, delete: if isAuth() &&
-        (resource.data.sellerId == request.auth.uid || isAdmin());
+        (resource.data.supplierId == request.auth.uid || isAdmin());
     }
 
     // ── Orders collection ─────────────────────────────────────────────────────
     match /orders/{orderId} {
-      // Buyer, seller, or admin can read an order
+      // Buyer or supplier of the order can read it; admins can read all
       allow read: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
-         resource.data.sellerId == request.auth.uid ||
+         resource.data.supplierId == request.auth.uid ||
          isAdmin());
 
-      // Any authenticated buyer can create an order
+      // Any authenticated user can create an order (role guard is in app logic)
       allow create: if isAuth();
 
-      // Buyer or seller can update order status; admin can always update
+      // Buyer or supplier can update their order; admin can always update
       allow update: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
-         resource.data.sellerId == request.auth.uid ||
+         resource.data.supplierId == request.auth.uid ||
          isAdmin());
 
       allow delete: if false;
@@ -85,16 +96,53 @@ service cloud.firestore {
     // ── Proofs collection ─────────────────────────────────────────────────────
     match /proofs/{proofId} {
       allow read: if isAuth() &&
-        (resource.data.sellerId == request.auth.uid ||
+        (resource.data.supplierId == request.auth.uid ||
          resource.data.buyerId == request.auth.uid ||
          isAdmin());
 
-      // Only the seller of the linked order can submit proof
-      allow create: if isAuth() && request.resource.data.sellerId == request.auth.uid;
+      // Only the supplier of the linked order can submit proof
+      allow create: if isAuth() && request.resource.data.supplierId == request.auth.uid;
 
-      // Seller can update their own proof; admin can update any
+      // Supplier can update their own proof; admin can update any
       allow update: if isAuth() &&
-        (resource.data.sellerId == request.auth.uid || isAdmin());
+        (resource.data.supplierId == request.auth.uid || isAdmin());
+
+      allow delete: if false;
+    }
+
+    // ── Requests collection ───────────────────────────────────────────────────
+    match /requests/{requestId} {
+      // All authenticated users can read open requests (buyers browse, suppliers book)
+      allow read: if isAuth();
+
+      // Only sellers (and admins) can create requests
+      allow create: if isAuth() && (isSeller() || isAdmin());
+
+      // Seller/admin can update any field; any auth user can update only
+      // booking-related counters (remainingAmount, status, updatedAt)
+      allow update: if isAuth() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin() ||
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['remainingAmount', 'status', 'updatedAt']));
+
+      allow delete: if false;
+    }
+
+    // ── Bookings collection ───────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      // Any authenticated user can read — queries are scoped in app code.
+      // (Firestore rejects queries when resource.data checks can't be validated
+      //  server-side without a matching where clause on the same field.)
+      allow read: if isAuth();
+
+      // Any authenticated user can create their own booking
+      allow create: if isAuth() && request.resource.data.supplierId == request.auth.uid;
+
+      // Supplier submits proof; seller accepts/rejects; admin can do anything
+      allow update: if isAuth() &&
+        (resource.data.supplierId == request.auth.uid ||
+         resource.data.sellerId   == request.auth.uid ||
+         isAdmin());
 
       allow delete: if false;
     }

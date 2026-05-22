@@ -3,7 +3,7 @@ import type { Timestamp } from 'firebase/firestore';
 export type FirestoreTimestamp = Timestamp;
 
 /** Role of the user in the marketplace */
-export type UserRole = 'buyer' | 'supplier' | 'admin';
+export type UserRole = 'buyer' | 'supplier' | 'seller' | 'admin';
 
 export interface BaseDocument {
   id: string;
@@ -59,24 +59,42 @@ export interface Listing extends BaseDocument {
   expiresAt: FirestoreTimestamp | null;
 }
 
+export type OrderStatus =
+  | 'pending_payment'
+  | 'paid'
+  | 'in_progress'
+  | 'proof_submitted'
+  | 'verified'
+  | 'completed'
+  | 'disputed'
+  | 'cancelled';
+
+export interface OrderProofVideo {
+  url: string;
+  uploadedAt: FirestoreTimestamp;
+  notes?: string;
+}
+
 export interface Order extends BaseDocument {
-  listingId: string;
-  listingTitle: string;
-  sellerId: string;
+  listingId: string | null;
+  supplierId: string;
   buyerId: string;
-  price: number;
-  currency: string;
-  status:
-    | 'pending'
-    | 'accepted'
-    | 'in_progress'
-    | 'proof_submitted'
-    | 'completed'
-    | 'cancelled'
-    | 'disputed';
-  proofId: string | null;
+  /** Denormalized for display */
+  supplierName: string;
+  buyerName: string;
+  /** Buyer's PUBG ID where POP will be sent */
+  targetPubgId: string;
+  popAmount: number;
+  agreedRatePer10k: number;
+  /** Total PKR = popAmount / 10000 * agreedRatePer10k */
+  totalPKR: number;
+  /** Platform commission in PKR (e.g. 40 PKR per 10k) */
+  commission: number;
+  status: OrderStatus;
+  proofVideos: OrderProofVideo[];
   notes: string | null;
   completedAt: FirestoreTimestamp | null;
+  expiresAt: FirestoreTimestamp | null;
 }
 
 export interface Proof extends BaseDocument {
@@ -103,6 +121,71 @@ export interface Review extends BaseDocument {
   rating: number;
   comment: string;
   isFromBuyer: boolean;
+}
+
+// ── Seller Request / Booking flow ─────────────────────────────────────────────
+
+/** Status of a seller's POP request (visible to buyers and suppliers) */
+export type RequestStatus =
+  | 'open'            // accepting supplier bookings + buyer orders
+  | 'partially_booked'
+  | 'fully_booked'
+  | 'in_progress'     // at least one booking is being fulfilled
+  | 'completed'
+  | 'cancelled';
+
+/** A POP request posted by a Seller.
+ *  - 'buyer' audience: buyers see it as "POP available to purchase"
+ *  - 'supplier' audience: suppliers see it as "POP needed — book how much you can send" */
+export interface SellerRequest extends BaseDocument {
+  sellerId: string;
+  sellerName: string;
+  /** Who this post is visible to: buyers OR suppliers (never both) */
+  targetAudience: 'buyer' | 'supplier';
+  /** Total POP the seller is dealing */
+  totalPopAmount: number;
+  /** PKR per 10,000 POP */
+  ratePer10k: number;
+  /** Remaining POP still available */
+  remainingAmount: number;
+  status: RequestStatus;
+  /** Optional notes */
+  notes: string | null;
+  /** PUBG ID where supplier should send the POP (for supplier-audience posts) */
+  destinationPubgId: string | null;
+  /** Deadline by which supplier should send POP, e.g. 'within 2 hours' */
+  deliveryDeadline: string | null;
+  completedAt: FirestoreTimestamp | null;
+}
+
+/** Status of a supplier's booking against a SellerRequest */
+export type BookingStatus =
+  | 'pending'       // awaiting seller acceptance
+  | 'accepted'      // seller accepted, supplier should send POP
+  | 'rejected'      // seller rejected
+  | 'in_progress'   // supplier is sending POP
+  | 'proof_submitted'
+  | 'completed';
+
+/** A supplier's booking for a portion of a SellerRequest */
+export interface Booking extends BaseDocument {
+  requestId: string;
+  sellerId: string;
+  supplierId: string;
+  supplierName: string;
+  supplierPubgId: string | null;
+  /** Amount of POP this supplier has committed to supply */
+  bookedAmount: number;
+  /** When the supplier will send POP: 'instant' or a custom time string */
+  deliveryTime: string;
+  /** Buyer PUBG ID attached by seller when accepting — supplier uses this to send POP */
+  buyerPubgId: string | null;
+  status: BookingStatus;
+  /** Proof URL submitted by supplier after sending POP */
+  proofUrl: string | null;
+  proofNotes: string | null;
+  proofSubmittedAt: FirestoreTimestamp | null;
+  completedAt: FirestoreTimestamp | null;
 }
 
 export type Theme = 'light' | 'dark' | 'system';

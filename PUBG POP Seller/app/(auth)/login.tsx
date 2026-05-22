@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 
 import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -10,7 +10,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { setUser } = useAuthStore();
+  const { setLoading: setAuthLoading } = useAuthStore();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -20,20 +20,12 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[AUTH] Login attempt for:', email);
-      const credential = await authService.signIn(email, password);
-      console.log('[AUTH] Firebase sign-in success — uid:', credential.user.uid);
-      const profile = await authService.getUserProfile(credential.user.uid);
-      console.log('[AUTH] Profile fetched — onboarding:', profile?.onboardingCompleted, '| role:', profile?.role);
-      // profile may be null if Firestore doc is missing — AuthProvider fallback handles it
-      setUser(profile);
-      if (!profile?.onboardingCompleted) {
-        console.log('[AUTH] Redirecting to onboarding');
-        router.replace('/(auth)/onboarding/role-select');
-      } else {
-        console.log('[AUTH] Redirecting to tabs');
-        router.replace('/(tabs)');
-      }
+      await authService.signIn(email, password);
+      // Mark auth as loading BEFORE navigating so index.tsx shows the spinner
+      // instead of briefly redirecting back to login (isAuthenticated is still
+      // false until onAuthStateChanged fires and resolves the profile).
+      setAuthLoading(true);
+      router.replace('/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       console.error('[AUTH] Login error:', msg);
@@ -50,10 +42,6 @@ export default function LoginScreen() {
     >
       {/* eslint-disable-next-line react-native/no-inline-styles */}
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        {/* DEBUG BANNER — remove after confirming screens work */}
-        <View style={debugStyles.banner}>
-          <Text style={debugStyles.bannerText}>✅ LOGIN SCREEN LOADED</Text>
-        </View>
         <View className="flex-1 justify-center px-6 py-12">
           <Text className="text-4xl font-bold text-white mb-2">Welcome back</Text>
           <Text className="text-surface-300 text-base mb-10">Sign in to your POP Seller account</Text>
@@ -120,7 +108,3 @@ export default function LoginScreen() {
   );
 }
 
-const debugStyles = StyleSheet.create({
-  banner: { backgroundColor: '#7c3aed', padding: 12, alignItems: 'center' },
-  bannerText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-});
