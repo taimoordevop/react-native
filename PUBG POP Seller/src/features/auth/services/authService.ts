@@ -24,6 +24,7 @@ export const authService = {
       photoURL: null,
       phoneNumber: null,
       role: 'buyer', // default role — changed during onboarding
+      paymentDetails: null,
       pubgId: null,
       pubgNickname: null,
       pubgServer: null,

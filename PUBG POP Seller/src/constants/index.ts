@@ -12,6 +12,7 @@ export const COLLECTION = {
   NOTIFICATIONS: 'notifications',
   CHATS: 'chats',
   MESSAGES: 'messages',
+  TRANSACTIONS: 'transactions',
 } as const;
 
 export const ORDER_STATUS = {
@@ -67,4 +68,5 @@ export const QUERY_KEYS = {
   REQUEST: 'request',
   BOOKINGS: 'bookings',
   NOTIFICATIONS: 'notifications',
+  TRANSACTIONS: 'transactions',
 } as const;

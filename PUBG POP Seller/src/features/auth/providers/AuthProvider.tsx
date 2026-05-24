@@ -55,6 +55,7 @@ function buildFallbackProfile(firebaseUser: FirebaseUser): UserProfile {
     photoURL: firebaseUser.photoURL,
     phoneNumber: firebaseUser.phoneNumber,
     role: 'buyer',
+    paymentDetails: null,
     pubgId: null,
     pubgNickname: null,
     pubgServer: null,

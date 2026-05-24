@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
+import { useAnalytics } from '@/features/analytics/hooks/useAnalytics';
 import { useSellerRequests } from '@/features/requests/hooks/useRequests';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -22,6 +23,7 @@ const SELLER_MENU = [
   { label: 'Post Request',  icon: '＋', href: '/(seller)/post-request' },
   { label: 'My Requests',   icon: '📋', href: '/(seller)/my-requests' },
   { label: 'Buyer Orders',  icon: '🛒', href: '/(seller)/orders' },
+  { label: 'Analytics',     icon: '📊', href: '/(seller)/analytics' },
   { label: 'Profile',       icon: '👤', href: '/(seller)/profile' },
 ];
 
@@ -122,6 +124,7 @@ function SellerDrawer({
 export default function SellerDashboard() {
   const { user } = useAuthStore();
   const { requests } = useSellerRequests(user?.uid);
+  const { data: analytics } = useAnalytics(user?.uid);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const openRequests  = requests.filter((r) => ['open', 'partially_booked'].includes(r.status));
@@ -152,6 +155,25 @@ export default function SellerDashboard() {
 
       {/* eslint-disable-next-line react-native/no-inline-styles */}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+
+        {/* Today’s profit banner */}
+        {(analytics?.today.totalProfit ?? 0) > 0 && (
+          <TouchableOpacity
+            className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-4 flex-row items-center"
+            onPress={() => router.push('/(seller)/analytics' as never)}
+          >
+            <View className="flex-1">
+              <Text className="text-green-400 text-xs font-semibold mb-0.5">💸 Today’s Profit</Text>
+              <Text className="text-white text-2xl font-bold">
+                PKR {analytics!.today.totalProfit.toLocaleString()}
+              </Text>
+              <Text className="text-surface-400 text-xs mt-0.5">
+                {analytics!.today.transactionCount} deal{analytics!.today.transactionCount !== 1 ? 's' : ''} today
+              </Text>
+            </View>
+            <Text className="text-green-400 text-xl">›</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Stats */}
         <View className="flex-row gap-3 mb-5">
@@ -197,11 +219,32 @@ export default function SellerDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="bg-surface-200 rounded-xl py-4 px-4 flex-row items-center"
+            className="bg-surface-200 rounded-xl py-4 px-4 mb-3 flex-row items-center"
             onPress={() => router.push('/(seller)/orders' as never)}
           >
             <Text className="text-white font-medium flex-1">Buyer Orders</Text>
             <Text className="text-surface-300">›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-surface-200 rounded-xl py-4 px-4 mb-3 flex-row items-center"
+            onPress={() => router.push('/(seller)/analytics' as never)}
+          >
+            <View className="flex-1">
+              <Text className="text-white font-medium">Analytics &amp; Profit</Text>
+              <Text className="text-surface-400 text-xs">
+                This month: PKR {(analytics?.thisMonth.totalProfit ?? 0).toLocaleString()}
+              </Text>
+            </View>
+            <Text className="text-surface-300">›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl py-4 px-4 flex-row items-center"
+            onPress={() => router.push('/(seller)/log-deal' as never)}
+          >
+            <Text className="text-yellow-400 font-medium flex-1">📝 Log WhatsApp Deal</Text>
+            <Text className="text-yellow-500">›</Text>
           </TouchableOpacity>
         </View>
 

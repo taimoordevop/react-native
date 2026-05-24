@@ -49,7 +49,7 @@ service cloud.firestore {
           'displayName', 'photoURL', 'bio',
           'pubgId', 'pubgNickname', 'pubgServer',
           'fcmToken', 'onboardingCompleted', 'updatedAt',
-          'role'
+          'role', 'paymentDetails'
         ]);
 
       // Admins can update any user field (for moderation / manual role assignment)
@@ -84,7 +84,9 @@ service cloud.firestore {
       // Any authenticated user can create an order (role guard is in app logic)
       allow create: if isAuth();
 
-      // Buyer or supplier can update their order; admin can always update
+      // Buyer, supplier/seller, or admin can update their order.
+      // - Buyer writes: buyerPaymentProof (payment screenshots)
+      // - Supplier/seller writes: status, proofVideos, supplierPayoutProof, buyerPaymentProof confirm
       allow update: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.supplierId == request.auth.uid ||
@@ -155,6 +157,20 @@ service cloud.firestore {
       allow create: if isAuth() && request.resource.data.reviewerId == request.auth.uid;
 
       // Reviews are immutable once submitted
+      allow update, delete: if false;
+    }
+
+    // ── Transactions collection ───────────────────────────────────────────────
+    match /transactions/{txnId} {
+      // Seller can read their own transactions
+      allow read: if isAuth() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin());
+
+      // Seller can create their own transaction records
+      allow create: if isAuth() &&
+        request.resource.data.sellerId == request.auth.uid;
+
+      // Transactions are immutable once created (no updates or deletes)
       allow update, delete: if false;
     }
 

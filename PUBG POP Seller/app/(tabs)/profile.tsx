@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -15,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { profileService } from '@/features/profile/services/profileService';
-import type { UserRole } from '@/shared/types';
+import type { SellerPaymentDetails, UserRole } from '@/shared/types';
 
 /** Role badge config — PUBG dark theme colors */
 const ROLE_BADGE: Record<UserRole, { label: string; bg: string; text: string }> = {
@@ -34,6 +35,14 @@ export default function ProfileScreen() {
   const [editNickname, setEditNickname] = useState(user?.pubgNickname ?? '');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // Payment details modal state
+  const [payModalVisible, setPayModalVisible] = useState(false);
+  const [payJazzCash, setPayJazzCash] = useState(user?.paymentDetails?.jazzCash ?? '');
+  const [payEasyPaisa, setPayEasyPaisa] = useState(user?.paymentDetails?.easyPaisa ?? '');
+  const [payBankAccount, setPayBankAccount] = useState(user?.paymentDetails?.bankAccount ?? '');
+  const [payBankName, setPayBankName] = useState(user?.paymentDetails?.bankName ?? '');
+  const [payLoading, setPayLoading] = useState(false);
 
   const role = user?.role ?? 'buyer';
   const badge = ROLE_BADGE[role];
@@ -76,6 +85,38 @@ export default function ProfileScreen() {
       setEditError(err instanceof Error ? err.message : 'Failed to update. Please try again.');
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const openPayModal = () => {
+    setPayJazzCash(user?.paymentDetails?.jazzCash ?? '');
+    setPayEasyPaisa(user?.paymentDetails?.easyPaisa ?? '');
+    setPayBankAccount(user?.paymentDetails?.bankAccount ?? '');
+    setPayBankName(user?.paymentDetails?.bankName ?? '');
+    setPayModalVisible(true);
+  };
+
+  const handleSavePaymentDetails = async () => {
+    if (!user) return;
+    if (!payJazzCash.trim() && !payEasyPaisa.trim() && !payBankAccount.trim()) {
+      Alert.alert('Required', 'Enter at least one payment method.');
+      return;
+    }
+    try {
+      setPayLoading(true);
+      const details: SellerPaymentDetails = {
+        jazzCash: payJazzCash.trim() || undefined,
+        easyPaisa: payEasyPaisa.trim() || undefined,
+        bankAccount: payBankAccount.trim() || undefined,
+        bankName: payBankName.trim() || undefined,
+      };
+      await profileService.update(user.uid, { paymentDetails: details });
+      setUser({ ...user, paymentDetails: details });
+      setPayModalVisible(false);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setPayLoading(false);
     }
   };
 
@@ -158,6 +199,63 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Payment Details (seller/supplier only) ── */}
+        {(role === 'seller' || role === 'supplier') && (
+          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-white font-semibold">Payment Details</Text>
+              <TouchableOpacity onPress={openPayModal}>
+                <Text className="text-primary-400 text-sm">
+                  {user?.paymentDetails ? 'Edit' : '+ Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {user?.paymentDetails ? (
+              <View className="gap-2">
+                {user.paymentDetails.jazzCash && (
+                  <View className="flex-row justify-between items-center py-1.5 border-b border-surface-200">
+                    <Text className="text-surface-300 text-sm">JazzCash</Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-white text-sm">{user.paymentDetails.jazzCash}</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.jazzCash!)}>
+                        <Text className="text-primary-400 text-xs">📋</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {user.paymentDetails.easyPaisa && (
+                  <View className="flex-row justify-between items-center py-1.5 border-b border-surface-200">
+                    <Text className="text-surface-300 text-sm">EasyPaisa</Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-white text-sm">{user.paymentDetails.easyPaisa}</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.easyPaisa!)}>
+                        <Text className="text-primary-400 text-xs">📋</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {user.paymentDetails.bankAccount && (
+                  <View className="flex-row justify-between items-center py-1.5">
+                    <Text className="text-surface-300 text-sm">
+                      {user.paymentDetails.bankName ?? 'Bank'}
+                    </Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-white text-sm">{user.paymentDetails.bankAccount}</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.bankAccount!)}>
+                        <Text className="text-primary-400 text-xs">📋</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Text className="text-surface-400 text-sm">
+                Add your JazzCash / EasyPaisa / Bank details so buyers can pay you.
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* ── Quick Actions ── */}
         <View className="bg-surface-100 rounded-2xl overflow-hidden mb-4">
           {[
@@ -187,6 +285,69 @@ export default function ProfileScreen() {
           <Text className="text-red-400 font-semibold">Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ── Payment Details Modal ── */}
+      <Modal
+        visible={payModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPayModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-surface rounded-t-3xl p-6">
+            <Text className="text-white text-xl font-bold mb-1">Payment Details</Text>
+            <Text className="text-surface-300 text-sm mb-5">
+              Buyers will see these to make manual transfers.
+            </Text>
+
+            {[{
+              label: 'JazzCash Number', value: payJazzCash, set: setPayJazzCash, placeholder: '03XX-XXXXXXX',
+            }, {
+              label: 'EasyPaisa Number', value: payEasyPaisa, set: setPayEasyPaisa, placeholder: '03XX-XXXXXXX',
+            }, {
+              label: 'Bank Account / IBAN', value: payBankAccount, set: setPayBankAccount, placeholder: 'PK36ALFA0123456789012345',
+            }, {
+              label: 'Bank Name (optional)', value: payBankName, set: setPayBankName, placeholder: 'e.g. HBL, UBL, Meezan',
+            }].map(({ label, value, set, placeholder }) => (
+              <View key={label} className="mb-4">
+                <Text className="text-surface-300 text-sm mb-2">{label}</Text>
+                <TextInput
+                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+                  value={value}
+                  onChangeText={set}
+                  placeholder={placeholder}
+                  placeholderTextColor="#475569"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            ))}
+
+            <View className="flex-row gap-3 mt-2">
+              <TouchableOpacity
+                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                onPress={() => setPayModalVisible(false)}
+                disabled={payLoading}
+              >
+                <Text className="text-white font-semibold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 rounded-xl py-4 items-center ${
+                  payLoading ? 'bg-surface-200' : 'bg-primary-500'
+                }`}
+                onPress={handleSavePaymentDetails}
+                disabled={payLoading}
+              >
+                {payLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold">Save Details</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Edit PUBG Info Modal ── */}
       <Modal

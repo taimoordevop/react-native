@@ -11,6 +11,13 @@ export interface BaseDocument {
   updatedAt: FirestoreTimestamp;
 }
 
+export interface SellerPaymentDetails {
+  jazzCash?: string;
+  easyPaisa?: string;
+  bankAccount?: string;
+  bankName?: string;
+}
+
 export interface UserProfile extends BaseDocument {
   uid: string;
   email: string;
@@ -19,6 +26,8 @@ export interface UserProfile extends BaseDocument {
   phoneNumber: string | null;
   // Role determines what the user can do in the app
   role: UserRole;
+  /** Payment details shown to buyers so they can send manual transfers */
+  paymentDetails: SellerPaymentDetails | null;
   // PUBG identity
   pubgId: string | null;
   pubgNickname: string | null;
@@ -72,6 +81,12 @@ export type OrderStatus =
 export interface OrderProofVideo {
   url: string;
   uploadedAt: FirestoreTimestamp;
+  /** Number of diamonds/POP units sent in this proof segment */
+  diamondsSent: number;
+  /** 'video' = screen recording, 'screenshot' = image */
+  type: 'video' | 'screenshot';
+  /** Optional low-res thumbnail URL (for video entries) */
+  thumbnailUrl?: string;
   notes?: string;
 }
 
@@ -93,6 +108,10 @@ export interface Order extends BaseDocument {
   status: OrderStatus;
   proofVideos: OrderProofVideo[];
   notes: string | null;
+  /** Screenshot URLs uploaded by buyer as payment proof */
+  buyerPaymentProof: string[];
+  /** Screenshot URLs uploaded by seller as payout proof to supplier */
+  supplierPayoutProof: string[];
   completedAt: FirestoreTimestamp | null;
   expiresAt: FirestoreTimestamp | null;
 }
@@ -186,6 +205,34 @@ export interface Booking extends BaseDocument {
   proofNotes: string | null;
   proofSubmittedAt: FirestoreTimestamp | null;
   completedAt: FirestoreTimestamp | null;
+}
+
+export type TransactionType =
+  | 'buyer_payment'
+  | 'supplier_payout'
+  | 'manual_profit'
+  | 'commission';
+
+export interface Transaction {
+  id: string;
+  sellerId: string;
+  /** Linked in-app order ID — null for manual/WhatsApp deals */
+  orderId: string | null;
+  type: TransactionType;
+  amountPKR: number;
+  /** Rate seller charged buyer per 10k POP */
+  buyerRate?: number;
+  /** Rate seller paid supplier per 10k POP */
+  supplierRate?: number;
+  /** Net profit = buyerRate - supplierRate, or manual entry */
+  profitPKR: number;
+  description: string;
+  paymentMethod: string;
+  proofUrl?: string;
+  /** POP amount involved (for rate-based deals) */
+  popAmount?: number;
+  date: FirestoreTimestamp;
+  isManual: boolean;
 }
 
 export type Theme = 'light' | 'dark' | 'system';

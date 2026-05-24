@@ -97,7 +97,7 @@ export function useAcceptBuyerOrder() {
   });
 }
 
-/** Supplier submits proof URL — transitions order to proof_submitted */
+/** Supplier submits proof entry (video or screenshot) — transitions order to proof_submitted */
 export function useSubmitProof() {
   const qc = useQueryClient();
   return useMutation({
@@ -105,13 +105,17 @@ export function useSubmitProof() {
       orderId,
       supplierId,
       url,
+      diamondsSent,
+      type,
       notes,
     }: {
       orderId: string;
       supplierId: string;
       url: string;
+      diamondsSent: number;
+      type: 'video' | 'screenshot';
       notes?: string;
-    }) => orderService.submitProof(orderId, supplierId, { url, notes }),
+    }) => orderService.submitProof(orderId, supplierId, { url, diamondsSent, type, notes }),
     onSuccess: (_data, { orderId }) => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDER, orderId] });
@@ -119,11 +123,47 @@ export function useSubmitProof() {
   });
 }
 
-/** Verify proof + release escrow — transitions verified → completed */
+/** Verify POP proof — transitions proof_submitted → verified (seller uploads payout separately) */
 export function useVerifyAndComplete() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (orderId: string) => orderService.verifyAndComplete(orderId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+    },
+  });
+}
+
+/** Buyer uploads payment screenshots — stays pending_payment until seller confirms */
+export function useSubmitBuyerPaymentProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, imageUrls }: { orderId: string; imageUrls: string[] }) =>
+      orderService.submitBuyerPaymentProof(orderId, imageUrls),
+    onSuccess: (_data, { orderId }) => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDER, orderId] });
+    },
+  });
+}
+
+/** Seller confirms payment received — pending_payment → in_progress */
+export function useConfirmPaymentReceived() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => orderService.confirmPaymentReceived(orderId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+    },
+  });
+}
+
+/** Seller uploads payout proof + transitions verified → completed */
+export function useSubmitSellerPayoutProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, imageUrls }: { orderId: string; imageUrls: string[] }) =>
+      orderService.submitSellerPayoutProof(orderId, imageUrls),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
     },

@@ -16,10 +16,21 @@ import {
   Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import { COLLECTION, COMMISSION_PER_10K } from '@/constants';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import type { Order, OrderStatus, OrderProofVideo, Listing } from '@/shared/types';
+
+// Lazy import to avoid circular deps — analytics imports nothing from orders
+let _transactionService: typeof import('@/features/analytics/services/transactionService').transactionService | null = null;
+async function getTransactionService() {
+  if (!_transactionService) {
+    const mod = await import('@/features/analytics/services/transactionService');
+    _transactionService = mod.transactionService;
+  }
+  return _transactionService;
+}
 
 /** Valid status transitions — prevents illegal state changes */
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -86,6 +97,8 @@ export const orderService = {
       deliveryNote: deliveryNote ?? null,
       status: 'pending_payment',
       proofVideos: [],
+      buyerPaymentProof: [],
+      supplierPayoutProof: [],
       notes: notes ?? null,
       completedAt: null,
       expiresAt: null,
@@ -116,6 +129,8 @@ export const orderService = {
       commission,
       status: 'pending_payment',
       proofVideos: [],
+      buyerPaymentProof: [],
+      supplierPayoutProof: [],
       notes: notes ?? null,
       completedAt: null,
       expiresAt: null,
@@ -154,7 +169,30 @@ export const orderService = {
     await updateDoc(doc(db, COLLECTION.ORDERS, id), update);
   },
 
-  /** Supplier appends a proof video URL to the order and transitions to proof_submitted */
+  /** Upload a video/image file to Firebase Storage, return the download URL.
+   *  onProgress is called with 0–100 as bytes transfer. */
+  async uploadVideoProof(
+    orderId: string,
+    supplierId: string,
+    localUri: string,
+    ext: 'mp4' | 'jpg' = 'mp4',
+    onProgress?: (pct: number) => void,
+  ): Promise<string> {
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+    const storageRef = ref(
+      storage,
+      `proof-videos/${orderId}/${supplierId}/${Date.now()}.${ext}`,
+    );
+    await uploadBytes(storageRef, blob, {
+      contentType: ext === 'mp4' ? 'video/mp4' : 'image/jpeg',
+    });
+    onProgress?.(100);
+    return getDownloadURL(storageRef);
+  },
+
+  /** Supplier appends a proof entry (video or screenshot) to the order
+   *  and transitions status → proof_submitted */
   async submitProof(
     orderId: string,
     supplierId: string,
@@ -205,10 +243,61 @@ export const orderService = {
     });
   },
 
+  /** Upload a screenshot image to Firebase Storage, return the download URL */
+  async uploadProofImage(orderId: string, userId: string, localUri: string): Promise<string> {
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+    const storageRef = ref(storage, `payment-proofs/${orderId}/${userId}/${Date.now()}.jpg`);
+    await uploadBytes(storageRef, blob);
+    return getDownloadURL(storageRef);
+  },
+
+  /** Buyer appends payment screenshot URLs — status stays pending_payment */
+  async submitBuyerPaymentProof(orderId: string, imageUrls: string[]): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+      buyerPaymentProof: arrayUnion(...imageUrls),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  /** Seller confirms payment was received — pending_payment → in_progress */
+  async confirmPaymentReceived(orderId: string): Promise<void> {
+    await this.updateStatus(orderId, 'in_progress');
+  },
+
+  /** Seller uploads payout proof to supplier + transitions verified → completed.
+   *  Also auto-creates a profit transaction record for analytics. */
+  async submitSellerPayoutProof(orderId: string, imageUrls: string[]): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+      supplierPayoutProof: arrayUnion(...imageUrls),
+      status: 'completed',
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Fire-and-forget: create profit transaction (non-blocking, won't fail the upload)
+    try {
+      const order = await this.getById(orderId);
+      if (order) {
+        const txSvc = await getTransactionService();
+        await txSvc.createFromCompletedOrder({
+          sellerId: order.supplierId,
+          orderId: order.id,
+          totalPKR: order.totalPKR,
+          commission: order.commission,
+          popAmount: order.popAmount,
+          agreedRatePer10k: order.agreedRatePer10k,
+          buyerName: order.buyerName,
+        });
+      }
+    } catch {
+      // Analytics failure must never block the user flow
+    }
+  },
+
   /** Verify proof and release escrow — marks order as verified → completed */
   async verifyAndComplete(orderId: string): Promise<void> {
     await this.updateStatus(orderId, 'verified');
-    await this.updateStatus(orderId, 'completed');
   },
 
   async getById(id: string): Promise<Order | null> {
