@@ -79,28 +79,57 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const METHOD_ICONS: Partial<Record<string, string>> = {
+  JazzCash: '💳',
+  EasyPaisa: '📱',
+  'Bank Transfer': '🏦',
+  SadaPay: '💜',
+  NayaPay: '🟢',
+};
+
 function PaymentDetailsPanel({ details }: { details: SellerPaymentDetails }) {
   const copy = async (val: string, label: string) => {
     await Clipboard.setStringAsync(val);
     Alert.alert('Copied!', `${label} copied to clipboard.`);
   };
-  const rows: { label: string; value: string }[] = [
-    ...(details.jazzCash ? [{ label: 'JazzCash', value: details.jazzCash }] : []),
-    ...(details.easyPaisa ? [{ label: 'EasyPaisa', value: details.easyPaisa }] : []),
-    ...(details.bankAccount ? [{ label: details.bankName ?? 'Bank', value: details.bankAccount }] : []),
-  ];
+
+  // Build unified rows from new methods array OR legacy flat fields
+  type Row = { type: string; accountNumber: string; accountTitle?: string };
+  let rows: Row[] = [];
+  if (details.methods && details.methods.length > 0) {
+    rows = details.methods.map((m) => ({
+      type: m.type,
+      accountNumber: m.accountNumber,
+      accountTitle: m.accountTitle,
+    }));
+  } else {
+    if (details.jazzCash) rows.push({ type: 'JazzCash', accountNumber: details.jazzCash });
+    if (details.easyPaisa) rows.push({ type: 'EasyPaisa', accountNumber: details.easyPaisa });
+    if (details.bankAccount) rows.push({ type: 'Bank Transfer', accountNumber: details.bankAccount, accountTitle: details.bankName });
+  }
+
   if (rows.length === 0) return null;
+
   return (
     <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-4">
       <Text className="text-yellow-400 font-semibold mb-3">💳 Send Payment To:</Text>
-      {rows.map(({ label, value }) => (
-        <View key={label} className="flex-row justify-between items-center py-2 border-b border-yellow-500/10 last:border-0">
-          <Text className="text-surface-300 text-sm">{label}</Text>
-          <View className="flex-row items-center gap-2">
-            <Text className="text-white font-bold text-base">{value}</Text>
+      {rows.map((row, i) => (
+        <View
+          key={i}
+          className={`py-3 ${i < rows.length - 1 ? 'border-b border-yellow-500/10' : ''}`}
+        >
+          <View className="flex-row items-center mb-1">
+            <Text className="text-base mr-2">{METHOD_ICONS[row.type] ?? '💰'}</Text>
+            <Text className="text-yellow-300 font-semibold text-sm">{row.type}</Text>
+            {row.accountTitle ? (
+              <Text className="text-surface-400 text-xs ml-2">({row.accountTitle})</Text>
+            ) : null}
+          </View>
+          <View className="flex-row items-center justify-between">
+            <Text className="text-white font-bold text-base flex-1">{row.accountNumber}</Text>
             <TouchableOpacity
-              onPress={() => copy(value, label)}
-              className="bg-yellow-500/20 rounded-lg px-2 py-1"
+              onPress={() => copy(row.accountNumber, row.type)}
+              className="bg-yellow-500/20 rounded-lg px-3 py-1 ml-2"
             >
               <Text className="text-yellow-400 text-xs font-semibold">📋 Copy</Text>
             </TouchableOpacity>

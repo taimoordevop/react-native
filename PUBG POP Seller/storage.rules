@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper: request must be authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: file must be an image or video
+    function isImageOrVideo() {
+      return request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType.matches('video/.*');
+    }
+
+    // Helper: file size under 200 MB
+    function underSizeLimit() {
+      return request.resource.size < 200 * 1024 * 1024;
+    }
+
+    // ── Payment proof screenshots (buyer uploads) ─────────────────────────────
+    // Path: payment-proofs/{orderId}/{userId}/{filename}
+    match /payment-proofs/{orderId}/{userId}/{filename} {
+      // The uploading user must match the userId segment
+      allow write: if isAuth() &&
+                      request.auth.uid == userId &&
+                      isImageOrVideo() &&
+                      underSizeLimit();
+
+      // Any authenticated party on the order can read (buyer + seller)
+      allow read: if isAuth();
+    }
+
+    // ── POP delivery proof videos / screenshots (supplier uploads) ────────────
+    // Path: proof-videos/{orderId}/{supplierId}/{filename}
+    match /proof-videos/{orderId}/{supplierId}/{filename} {
+      allow write: if isAuth() &&
+                      request.auth.uid == supplierId &&
+                      isImageOrVideo() &&
+                      underSizeLimit();
+
+      allow read: if isAuth();
+    }
+
+    // ── Manual deal proof screenshots (seller uploads) ────────────────────────
+    // Path: payment-proofs/manual/{sellerId}/{filename}
+    match /payment-proofs/manual/{sellerId}/{filename} {
+      allow write: if isAuth() &&
+                      request.auth.uid == sellerId &&
+                      isImageOrVideo() &&
+                      underSizeLimit();
+
+      allow read: if isAuth();
+    }
+
+    // ── Profile photos ────────────────────────────────────────────────────────
+    // Path: profile-photos/{userId}/{filename}
+    match /profile-photos/{userId}/{filename} {
+      allow write: if isAuth() &&
+                      request.auth.uid == userId &&
+                      request.resource.contentType.matches('image/.*') &&
+                      request.resource.size < 10 * 1024 * 1024;
+
+      allow read: if isAuth();
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

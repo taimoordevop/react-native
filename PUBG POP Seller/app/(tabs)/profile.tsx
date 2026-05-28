@@ -16,7 +16,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { profileService } from '@/features/profile/services/profileService';
-import type { SellerPaymentDetails, UserRole } from '@/shared/types';
+import type { PaymentMethod, PaymentMethodType, UserRole } from '@/shared/types';
+
+const PAYMENT_TYPES: PaymentMethodType[] = ['JazzCash', 'EasyPaisa', 'Bank Transfer', 'SadaPay', 'NayaPay'];
+
+const METHOD_ICONS: Record<PaymentMethodType, string> = {
+  JazzCash: '💳',
+  EasyPaisa: '📱',
+  'Bank Transfer': '🏦',
+  SadaPay: '💜',
+  NayaPay: '🟢',
+};
 
 /** Role badge config — PUBG dark theme colors */
 const ROLE_BADGE: Record<UserRole, { label: string; bg: string; text: string }> = {
@@ -25,6 +35,19 @@ const ROLE_BADGE: Record<UserRole, { label: string; bg: string; text: string }> 
   seller:   { label: 'Seller',   bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
   admin:    { label: 'Admin',    bg: 'bg-purple-500/20', text: 'text-purple-400' },
 };
+
+/** Get current methods array from paymentDetails — merges legacy flat fields + new methods array */
+function getMethods(details: import('@/shared/types').SellerPaymentDetails | null | undefined): PaymentMethod[] {
+  if (!details) return [];
+  const out: PaymentMethod[] = [...(details.methods ?? [])];
+  // Migrate legacy flat fields if no methods array yet
+  if (!details.methods) {
+    if (details.jazzCash) out.push({ type: 'JazzCash', accountNumber: details.jazzCash });
+    if (details.easyPaisa) out.push({ type: 'EasyPaisa', accountNumber: details.easyPaisa });
+    if (details.bankAccount) out.push({ type: 'Bank Transfer', accountNumber: details.bankAccount, accountTitle: details.bankName });
+  }
+  return out;
+}
 
 export default function ProfileScreen() {
   const { user, setUser, signOut } = useAuthStore();
@@ -36,16 +59,22 @@ export default function ProfileScreen() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Payment details modal state
+  // Payment method modal state
   const [payModalVisible, setPayModalVisible] = useState(false);
-  const [payJazzCash, setPayJazzCash] = useState(user?.paymentDetails?.jazzCash ?? '');
-  const [payEasyPaisa, setPayEasyPaisa] = useState(user?.paymentDetails?.easyPaisa ?? '');
-  const [payBankAccount, setPayBankAccount] = useState(user?.paymentDetails?.bankAccount ?? '');
-  const [payBankName, setPayBankName] = useState(user?.paymentDetails?.bankName ?? '');
   const [payLoading, setPayLoading] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  // Which method we're adding/editing (null = closed)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Form fields for the method being added/edited
+  const [selectedType, setSelectedType] = useState<PaymentMethodType>('JazzCash');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountTitle, setAccountTitle] = useState('');
+  // Show type picker dropdown
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
 
   const role = user?.role ?? 'buyer';
   const badge = ROLE_BADGE[role];
+  const savedMethods = getMethods(user?.paymentDetails);
 
   const handleSignOut = async () => {
     await authService.signOut();
@@ -53,7 +82,6 @@ export default function ProfileScreen() {
   };
 
   const openEditModal = () => {
-    // Reset fields to current values when opening
     setEditPubgId(user?.pubgId ?? '');
     setEditNickname(user?.pubgNickname ?? '');
     setEditError(null);
@@ -70,7 +98,6 @@ export default function ProfileScreen() {
       return;
     }
     if (!user) return;
-
     try {
       setEditLoading(true);
       setEditError(null);
@@ -78,7 +105,6 @@ export default function ProfileScreen() {
         pubgId: editPubgId.trim(),
         pubgNickname: editNickname.trim(),
       });
-      // Update local store immediately
       setUser({ ...user, pubgId: editPubgId.trim(), pubgNickname: editNickname.trim() });
       setEditModalVisible(false);
     } catch (err) {
@@ -88,33 +114,76 @@ export default function ProfileScreen() {
     }
   };
 
-  const openPayModal = () => {
-    setPayJazzCash(user?.paymentDetails?.jazzCash ?? '');
-    setPayEasyPaisa(user?.paymentDetails?.easyPaisa ?? '');
-    setPayBankAccount(user?.paymentDetails?.bankAccount ?? '');
-    setPayBankName(user?.paymentDetails?.bankName ?? '');
+  /** Open modal to add a new payment method */
+  const openAddMethod = () => {
+    setEditingIndex(null);
+    setSelectedType('JazzCash');
+    setAccountNumber('');
+    setAccountTitle('');
+    setPayError(null);
+    setTypePickerOpen(false);
     setPayModalVisible(true);
   };
 
-  const handleSavePaymentDetails = async () => {
+  /** Open modal to edit an existing payment method */
+  const openEditMethod = (index: number) => {
+    const m = savedMethods[index];
+    setEditingIndex(index);
+    setSelectedType(m.type);
+    setAccountNumber(m.accountNumber);
+    setAccountTitle(m.accountTitle ?? '');
+    setPayError(null);
+    setTypePickerOpen(false);
+    setPayModalVisible(true);
+  };
+
+  const handleDeleteMethod = (index: number) => {
+    Alert.alert('Remove Payment Method', 'Are you sure you want to remove this account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          if (!user) return;
+          const updated = savedMethods.filter((_, i) => i !== index);
+          const details = { methods: updated };
+          await profileService.update(user.uid, { paymentDetails: details });
+          setUser({ ...user, paymentDetails: details });
+        },
+      },
+    ]);
+  };
+
+  const handleSaveMethod = async () => {
     if (!user) return;
-    if (!payJazzCash.trim() && !payEasyPaisa.trim() && !payBankAccount.trim()) {
-      Alert.alert('Required', 'Enter at least one payment method.');
+    if (!accountNumber.trim()) {
+      setPayError('Account number is required.');
+      return;
+    }
+    if (accountNumber.trim().length < 5) {
+      setPayError('Enter a valid account number (min 5 characters).');
       return;
     }
     try {
       setPayLoading(true);
-      const details: SellerPaymentDetails = {
-        jazzCash: payJazzCash.trim() || undefined,
-        easyPaisa: payEasyPaisa.trim() || undefined,
-        bankAccount: payBankAccount.trim() || undefined,
-        bankName: payBankName.trim() || undefined,
+      setPayError(null);
+      const newMethod: PaymentMethod = {
+        type: selectedType,
+        accountNumber: accountNumber.trim(),
+        ...(accountTitle.trim() ? { accountTitle: accountTitle.trim() } : {}),
       };
+      let updated: PaymentMethod[];
+      if (editingIndex !== null) {
+        updated = savedMethods.map((m, i) => (i === editingIndex ? newMethod : m));
+      } else {
+        updated = [...savedMethods, newMethod];
+      }
+      const details = { methods: updated };
       await profileService.update(user.uid, { paymentDetails: details });
       setUser({ ...user, paymentDetails: details });
       setPayModalVisible(false);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save');
+      setPayError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
     } finally {
       setPayLoading(false);
     }
@@ -203,55 +272,56 @@ export default function ProfileScreen() {
         {(role === 'seller' || role === 'supplier') && (
           <View className="bg-surface-100 rounded-2xl p-4 mb-4">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-white font-semibold">Payment Details</Text>
-              <TouchableOpacity onPress={openPayModal}>
-                <Text className="text-primary-400 text-sm">
-                  {user?.paymentDetails ? 'Edit' : '+ Add'}
-                </Text>
+              <Text className="text-white font-semibold">Payment Methods</Text>
+              <TouchableOpacity onPress={openAddMethod}>
+                <Text className="text-primary-400 text-sm">+ Add</Text>
               </TouchableOpacity>
             </View>
-            {user?.paymentDetails ? (
-              <View className="gap-2">
-                {user.paymentDetails.jazzCash && (
-                  <View className="flex-row justify-between items-center py-1.5 border-b border-surface-200">
-                    <Text className="text-surface-300 text-sm">JazzCash</Text>
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-white text-sm">{user.paymentDetails.jazzCash}</Text>
-                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.jazzCash!)}>
-                        <Text className="text-primary-400 text-xs">📋</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                {user.paymentDetails.easyPaisa && (
-                  <View className="flex-row justify-between items-center py-1.5 border-b border-surface-200">
-                    <Text className="text-surface-300 text-sm">EasyPaisa</Text>
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-white text-sm">{user.paymentDetails.easyPaisa}</Text>
-                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.easyPaisa!)}>
-                        <Text className="text-primary-400 text-xs">📋</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                {user.paymentDetails.bankAccount && (
-                  <View className="flex-row justify-between items-center py-1.5">
-                    <Text className="text-surface-300 text-sm">
-                      {user.paymentDetails.bankName ?? 'Bank'}
-                    </Text>
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-white text-sm">{user.paymentDetails.bankAccount}</Text>
-                      <TouchableOpacity onPress={() => Clipboard.setStringAsync(user.paymentDetails!.bankAccount!)}>
-                        <Text className="text-primary-400 text-xs">📋</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ) : (
+
+            {savedMethods.length === 0 ? (
               <Text className="text-surface-400 text-sm">
-                Add your JazzCash / EasyPaisa / Bank details so buyers can pay you.
+                No payment methods yet. Tap + Add to add JazzCash, EasyPaisa, Bank, etc.
               </Text>
+            ) : (
+              savedMethods.map((m, i) => (
+                <View
+                  key={i}
+                  className={`flex-row items-center py-3 ${
+                    i < savedMethods.length - 1 ? 'border-b border-surface-200' : ''
+                  }`}
+                >
+                  {/* Icon + details */}
+                  <Text className="text-xl mr-3">{METHOD_ICONS[m.type]}</Text>
+                  <View className="flex-1">
+                    <Text className="text-white font-semibold text-sm">{m.type}</Text>
+                    {m.accountTitle ? (
+                      <Text className="text-surface-400 text-xs">{m.accountTitle}</Text>
+                    ) : null}
+                    <Text className="text-surface-300 text-sm">{m.accountNumber}</Text>
+                  </View>
+                  {/* Copy */}
+                  <TouchableOpacity
+                    onPress={() => Clipboard.setStringAsync(m.accountNumber)}
+                    className="bg-surface-200 rounded-lg px-2 py-1 mr-2"
+                  >
+                    <Text className="text-surface-300 text-xs">📋</Text>
+                  </TouchableOpacity>
+                  {/* Edit */}
+                  <TouchableOpacity
+                    onPress={() => openEditMethod(i)}
+                    className="bg-primary-500/20 rounded-lg px-2 py-1 mr-2"
+                  >
+                    <Text className="text-primary-400 text-xs">Edit</Text>
+                  </TouchableOpacity>
+                  {/* Delete */}
+                  <TouchableOpacity
+                    onPress={() => handleDeleteMethod(i)}
+                    className="bg-red-500/20 rounded-lg px-2 py-1"
+                  >
+                    <Text className="text-red-400 text-xs">✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
             )}
           </View>
         )}
@@ -286,7 +356,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* ── Payment Details Modal ── */}
+      {/* ── Add / Edit Payment Method Modal ── */}
       <Modal
         visible={payModalVisible}
         transparent
@@ -294,58 +364,128 @@ export default function ProfileScreen() {
         onRequestClose={() => setPayModalVisible(false)}
       >
         <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-surface rounded-t-3xl p-6">
-            <Text className="text-white text-xl font-bold mb-1">Payment Details</Text>
-            <Text className="text-surface-300 text-sm mb-5">
-              Buyers will see these to make manual transfers.
-            </Text>
+          <ScrollView
+            /* eslint-disable-next-line react-native/no-inline-styles */
+            style={{ maxHeight: '85%' }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View className="bg-surface rounded-t-3xl p-6">
+              <Text className="text-white text-xl font-bold mb-1">
+                {editingIndex !== null ? 'Update Payment Method' : 'Add Payment Method'}
+              </Text>
+              <Text className="text-surface-300 text-sm mb-5">
+                {editingIndex !== null
+                  ? 'Edit your account details below.'
+                  : 'Choose a payment type and enter your account number.'}
+              </Text>
 
-            {[{
-              label: 'JazzCash Number', value: payJazzCash, set: setPayJazzCash, placeholder: '03XX-XXXXXXX',
-            }, {
-              label: 'EasyPaisa Number', value: payEasyPaisa, set: setPayEasyPaisa, placeholder: '03XX-XXXXXXX',
-            }, {
-              label: 'Bank Account / IBAN', value: payBankAccount, set: setPayBankAccount, placeholder: 'PK36ALFA0123456789012345',
-            }, {
-              label: 'Bank Name (optional)', value: payBankName, set: setPayBankName, placeholder: 'e.g. HBL, UBL, Meezan',
-            }].map(({ label, value, set, placeholder }) => (
-              <View key={label} className="mb-4">
-                <Text className="text-surface-300 text-sm mb-2">{label}</Text>
+              {/* ── Payment Type Dropdown ── */}
+              <Text className="text-surface-300 text-sm mb-2">Payment Type *</Text>
+              <TouchableOpacity
+                className="bg-surface-100 rounded-xl px-4 py-3 mb-1 flex-row justify-between items-center"
+                onPress={() => setTypePickerOpen((o) => !o)}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-xl">{METHOD_ICONS[selectedType]}</Text>
+                  <Text className="text-white text-base">{selectedType}</Text>
+                </View>
+                <Text className="text-surface-300">{typePickerOpen ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+
+              {typePickerOpen && (
+                <View className="bg-surface-200 rounded-xl mb-4 overflow-hidden">
+                  {PAYMENT_TYPES.map((pt) => (
+                    <TouchableOpacity
+                      key={pt}
+                      className={`px-4 py-3 flex-row items-center gap-3 ${
+                        pt === selectedType ? 'bg-primary-500/20' : ''
+                      }`}
+                      onPress={() => {
+                        setSelectedType(pt);
+                        setTypePickerOpen(false);
+                      }}
+                    >
+                      <Text className="text-xl">{METHOD_ICONS[pt]}</Text>
+                      <Text className={`text-base ${
+                        pt === selectedType ? 'text-primary-400 font-semibold' : 'text-white'
+                      }`}>{pt}</Text>
+                      {pt === selectedType && <Text className="text-primary-400 ml-auto">✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* ── Account Number ── */}
+              <View className="mb-4 mt-2">
+                <Text className="text-surface-300 text-sm mb-2">Account Number *</Text>
                 <TextInput
                   className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
-                  value={value}
-                  onChangeText={set}
-                  placeholder={placeholder}
+                  value={accountNumber}
+                  onChangeText={(v) => { setAccountNumber(v); setPayError(null); }}
+                  placeholder={
+                    selectedType === 'Bank Transfer'
+                      ? 'IBAN or account number'
+                      : '03XX-XXXXXXX'
+                  }
                   placeholderTextColor="#475569"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType="default"
                 />
               </View>
-            ))}
 
-            <View className="flex-row gap-3 mt-2">
-              <TouchableOpacity
-                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
-                onPress={() => setPayModalVisible(false)}
-                disabled={payLoading}
-              >
-                <Text className="text-white font-semibold">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className={`flex-1 rounded-xl py-4 items-center ${
-                  payLoading ? 'bg-surface-200' : 'bg-primary-500'
-                }`}
-                onPress={handleSavePaymentDetails}
-                disabled={payLoading}
-              >
-                {payLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white font-semibold">Save Details</Text>
-                )}
-              </TouchableOpacity>
+              {/* ── Account Title (optional) ── */}
+              <View className="mb-5">
+                <Text className="text-surface-300 text-sm mb-2">
+                  {selectedType === 'Bank Transfer' ? 'Account Title / Bank Name' : 'Account Name (optional)'}
+                </Text>
+                <TextInput
+                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+                  value={accountTitle}
+                  onChangeText={setAccountTitle}
+                  placeholder={
+                    selectedType === 'Bank Transfer'
+                      ? 'e.g. Muhammad Ali — HBL'
+                      : 'e.g. Muhammad Ali'
+                  }
+                  placeholderTextColor="#475569"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {payError && (
+                <View className="bg-red-500/20 border border-red-500/30 rounded-xl p-3 mb-4">
+                  <Text className="text-red-400 text-sm">{payError}</Text>
+                </View>
+              )}
+
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                  onPress={() => setPayModalVisible(false)}
+                  disabled={payLoading}
+                >
+                  <Text className="text-white font-semibold">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 rounded-xl py-4 items-center ${
+                    payLoading ? 'bg-surface-200' : 'bg-primary-500'
+                  }`}
+                  onPress={handleSaveMethod}
+                  disabled={payLoading}
+                >
+                  {payLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-white font-semibold">
+                      {editingIndex !== null ? 'Update' : 'Save Method'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 

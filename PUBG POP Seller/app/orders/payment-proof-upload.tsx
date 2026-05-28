@@ -38,8 +38,19 @@ export default function PaymentProofUploadScreen() {
 
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [progressMap, setProgressMap] = useState<Record<number, number>>({});
+  const [currentFile, setCurrentFile] = useState<{ index: number; total: number } | null>(null);
 
   const cfg = MODE_CONFIG[mode ?? 'buyer_payment'];
+
+  const overallProgress =
+    currentFile && images.length > 0
+      ? Math.round(
+          ((currentFile.index + (progressMap[currentFile.index] ?? 0) / 100) /
+            currentFile.total) *
+            100,
+        )
+      : 0;
 
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -50,7 +61,7 @@ export default function PaymentProofUploadScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
-      quality: 0.7,
+      quality: 0.8,
       selectionLimit: 5,
     });
     if (!result.canceled) {
@@ -71,27 +82,39 @@ export default function PaymentProofUploadScreen() {
     }
     try {
       setUploading(true);
+      setProgressMap({});
       const uploadedUrls: string[] = [];
-      for (const uri of images) {
-        const url = await orderService.uploadProofImage(orderId, user.uid, uri);
+
+      for (let i = 0; i < images.length; i++) {
+        setCurrentFile({ index: i, total: images.length });
+        const url = await orderService.uploadProofImage(
+          orderId,
+          user.uid,
+          images[i],
+          (pct) => setProgressMap((prev) => ({ ...prev, [i]: pct })),
+        );
         uploadedUrls.push(url);
       }
+
+      setCurrentFile(null);
+
       if (mode === 'buyer_payment') {
         await orderService.submitBuyerPaymentProof(orderId, uploadedUrls);
         Alert.alert(
-          'Proof Submitted',
+          'Proof Submitted ✓',
           'Your payment screenshots have been submitted. The seller will confirm receipt shortly.',
           [{ text: 'OK', onPress: () => router.back() }],
         );
       } else {
         await orderService.submitSellerPayoutProof(orderId, uploadedUrls);
         Alert.alert(
-          'Order Completed',
+          'Order Completed ✓',
           'Payout proof uploaded. The order is now marked as completed.',
           [{ text: 'OK', onPress: () => router.back() }],
         );
       }
     } catch (err) {
+      setCurrentFile(null);
       Alert.alert('Upload Failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setUploading(false);
@@ -102,7 +125,7 @@ export default function PaymentProofUploadScreen() {
     <SafeAreaView className="flex-1 bg-surface">
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
-        <TouchableOpacity onPress={() => router.back()} className="mr-3">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3" disabled={uploading}>
           <Text className="text-primary-400 text-base">← Back</Text>
         </TouchableOpacity>
         <Text className="text-white text-lg font-bold flex-1">{cfg.title}</Text>
@@ -133,20 +156,54 @@ export default function PaymentProofUploadScreen() {
                     style={{ width: 100, height: 100, borderRadius: 12 }}
                     resizeMode="cover"
                   />
-                  <TouchableOpacity
-                    onPress={() => removeImage(i)}
-                    className="absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 items-center justify-center"
-                  >
-                    <Text className="text-white text-xs font-bold">✕</Text>
-                  </TouchableOpacity>
+                  {/* Per-image progress overlay */}
+                  {uploading && progressMap[i] !== undefined && progressMap[i] < 100 && (
+                    <View
+                      className="absolute inset-0 bg-black/60 rounded-xl items-center justify-center"
+                    >
+                      <Text className="text-white text-xs font-bold">{progressMap[i]}%</Text>
+                    </View>
+                  )}
+                  {uploading && progressMap[i] === 100 && (
+                    <View className="absolute inset-0 bg-green-500/40 rounded-xl items-center justify-center">
+                      <Text className="text-white text-lg">✓</Text>
+                    </View>
+                  )}
+                  {!uploading && (
+                    <TouchableOpacity
+                      onPress={() => removeImage(i)}
+                      className="absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 items-center justify-center"
+                    >
+                      <Text className="text-white text-xs font-bold">✕</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
             </View>
           </View>
         )}
 
+        {/* Overall upload progress bar */}
+        {uploading && (
+          <View className="mb-4">
+            <View className="flex-row justify-between mb-1">
+              <Text className="text-surface-300 text-xs">
+                Uploading {(currentFile?.index ?? 0) + 1} of {currentFile?.total ?? images.length}…
+              </Text>
+              <Text className="text-surface-300 text-xs">{overallProgress}%</Text>
+            </View>
+            <View className="h-2 bg-surface-200 rounded-full overflow-hidden">
+              <View
+                className="h-2 bg-primary-500 rounded-full"
+                /* eslint-disable-next-line react-native/no-inline-styles */
+                style={{ width: `${overallProgress}%` }}
+              />
+            </View>
+          </View>
+        )}
+
         {/* Pick images button */}
-        {images.length < 5 && (
+        {images.length < 5 && !uploading && (
           <TouchableOpacity
             onPress={pickImages}
             className="border-2 border-dashed border-surface-300 rounded-2xl py-8 items-center mb-6"
@@ -170,7 +227,7 @@ export default function PaymentProofUploadScreen() {
           {uploading ? (
             <View className="flex-row items-center gap-2">
               <ActivityIndicator color="#fff" size="small" />
-              <Text className="text-white font-bold">Uploading…</Text>
+              <Text className="text-white font-bold">Uploading to Cloudinary…</Text>
             </View>
           ) : (
             <Text className="text-white font-bold text-base">{cfg.btnLabel}</Text>

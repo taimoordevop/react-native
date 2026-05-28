@@ -165,6 +165,7 @@ export default function ProofUploadScreen() {
       setStage('uploading');
       setUploadProgress(0);
 
+      // Uploads to Cloudinary via orderService (Firebase Storage removed)
       const url = await orderService.uploadVideoProof(
         orderId,
         user.uid,
@@ -396,7 +397,10 @@ export default function ProofUploadScreen() {
       <SafeAreaView className="flex-1 bg-surface">
         <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
           <TouchableOpacity
-            onPress={() => useUrlMode ? setUseUrlMode(false) || setStage('guide') : setStage('preview')}
+            onPress={() => {
+              if (useUrlMode) { setUseUrlMode(false); setStage('guide'); }
+              else { setStage('preview'); }
+            }}
             className="mr-3"
           >
             <Text className="text-primary-400 text-base">← Back</Text>

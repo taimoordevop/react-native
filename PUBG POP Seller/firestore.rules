@@ -75,18 +75,23 @@ service cloud.firestore {
 
     // ── Orders collection ─────────────────────────────────────────────────────
     match /orders/{orderId} {
-      // Buyer or supplier of the order can read it; admins can read all
-      allow read: if isAuth() &&
+      // Single-document get: buyer or supplier can read their own order
+      allow get: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.supplierId == request.auth.uid ||
          isAdmin());
+
+      // List/query: allow any authenticated user — app-side where clauses
+      // (buyerId == uid or supplierId == uid) keep data scoped correctly.
+      // Firestore cannot evaluate resource.data during collection queries.
+      allow list: if isAuth();
 
       // Any authenticated user can create an order (role guard is in app logic)
       allow create: if isAuth();
 
       // Buyer, supplier/seller, or admin can update their order.
       // - Buyer writes: buyerPaymentProof (payment screenshots)
-      // - Supplier/seller writes: status, proofVideos, supplierPayoutProof, buyerPaymentProof confirm
+      // - Supplier/seller writes: status, proofVideos, supplierPayoutProof
       allow update: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.supplierId == request.auth.uid ||

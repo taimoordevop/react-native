@@ -11,11 +11,22 @@ export interface BaseDocument {
   updatedAt: FirestoreTimestamp;
 }
 
+export type PaymentMethodType = 'JazzCash' | 'EasyPaisa' | 'Bank Transfer' | 'SadaPay' | 'NayaPay';
+
+export interface PaymentMethod {
+  type: PaymentMethodType;
+  accountNumber: string;
+  accountTitle?: string;
+}
+
+/** Legacy flat shape — kept for backwards-compat reads from old documents */
 export interface SellerPaymentDetails {
   jazzCash?: string;
   easyPaisa?: string;
   bankAccount?: string;
   bankName?: string;
+  /** New format: list of payment methods */
+  methods?: PaymentMethod[];
 }
 
 export interface UserProfile extends BaseDocument {

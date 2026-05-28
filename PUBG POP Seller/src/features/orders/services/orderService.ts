@@ -16,10 +16,9 @@ import {
   Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
 import { COLLECTION, COMMISSION_PER_10K } from '@/constants';
-import { db, storage } from '@/lib/firebase';
+import { uploadProofImage as cloudinaryUploadProofImage, uploadProofVideo as cloudinaryUploadProofVideo } from '@/lib/cloudinary';
+import { db } from '@/lib/firebase';
 import type { Order, OrderStatus, OrderProofVideo, Listing } from '@/shared/types';
 
 // Lazy import to avoid circular deps — analytics imports nothing from orders
@@ -169,8 +168,8 @@ export const orderService = {
     await updateDoc(doc(db, COLLECTION.ORDERS, id), update);
   },
 
-  /** Upload a video/image file to Firebase Storage, return the download URL.
-   *  onProgress is called with 0–100 as bytes transfer. */
+  /** Upload a video/image file to Cloudinary, return the secure URL.
+   *  onProgress is called with 0–100 during upload. */
   async uploadVideoProof(
     orderId: string,
     supplierId: string,
@@ -178,17 +177,10 @@ export const orderService = {
     ext: 'mp4' | 'jpg' = 'mp4',
     onProgress?: (pct: number) => void,
   ): Promise<string> {
-    const response = await fetch(localUri);
-    const blob = await response.blob();
-    const storageRef = ref(
-      storage,
-      `proof-videos/${orderId}/${supplierId}/${Date.now()}.${ext}`,
-    );
-    await uploadBytes(storageRef, blob, {
-      contentType: ext === 'mp4' ? 'video/mp4' : 'image/jpeg',
-    });
-    onProgress?.(100);
-    return getDownloadURL(storageRef);
+    if (ext === 'jpg') {
+      return cloudinaryUploadProofImage(orderId, supplierId, localUri, onProgress);
+    }
+    return cloudinaryUploadProofVideo(orderId, supplierId, localUri, onProgress);
   },
 
   /** Supplier appends a proof entry (video or screenshot) to the order
@@ -243,13 +235,9 @@ export const orderService = {
     });
   },
 
-  /** Upload a screenshot image to Firebase Storage, return the download URL */
-  async uploadProofImage(orderId: string, userId: string, localUri: string): Promise<string> {
-    const response = await fetch(localUri);
-    const blob = await response.blob();
-    const storageRef = ref(storage, `payment-proofs/${orderId}/${userId}/${Date.now()}.jpg`);
-    await uploadBytes(storageRef, blob);
-    return getDownloadURL(storageRef);
+  /** Upload a screenshot image to Cloudinary, return the secure URL */
+  async uploadProofImage(orderId: string, userId: string, localUri: string, onProgress?: (pct: number) => void): Promise<string> {
+    return cloudinaryUploadProofImage(orderId, userId, localUri, onProgress);
   },
 
   /** Buyer appends payment screenshot URLs — status stays pending_payment */

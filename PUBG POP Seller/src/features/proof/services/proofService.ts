@@ -9,10 +9,9 @@ import {
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
 import { COLLECTION } from '@/constants';
-import { db, storage } from '@/lib/firebase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
+import { db } from '@/lib/firebase';
 import type { Proof, ProofMedia } from '@/shared/types';
 
 export const proofService = {
@@ -56,16 +55,16 @@ export const proofService = {
     sellerId: string,
     orderId: string,
     uri: string,
-    fileName: string,
+    _fileName: string,
     type: 'image' | 'video',
   ): Promise<ProofMedia> {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const storageRef = ref(storage, `proofs/${sellerId}/${orderId}/${fileName}`);
-    await uploadBytes(storageRef, blob);
-    const downloadURL = await getDownloadURL(storageRef);
+    const result = await uploadToCloudinary(
+      uri,
+      `proofs/${sellerId}/${orderId}`,
+      type,
+    );
     return {
-      uri: downloadURL,
+      uri: result.secure_url,
       type,
       uploadedAt: serverTimestamp() as ProofMedia['uploadedAt'],
     };

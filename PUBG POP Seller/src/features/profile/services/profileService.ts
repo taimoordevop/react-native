@@ -4,11 +4,23 @@ import {
   getDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
 import { COLLECTION } from '@/constants';
-import { db, storage } from '@/lib/firebase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
+import { db } from '@/lib/firebase';
 import type { UserProfile, UserRole } from '@/shared/types';
+
+/** Remove any keys whose value is undefined (Firestore rejects undefined values) */
+function stripUndefined<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) =>
+        v !== null && typeof v === 'object' && !Array.isArray(v)
+          ? [k, stripUndefined(v as object)]
+          : [k, v],
+      ),
+  ) as T;
+}
 
 export const profileService = {
   /** Fetch a user profile by UID. Returns null if document doesn't exist. */
@@ -18,10 +30,10 @@ export const profileService = {
     return { id: snap.id, ...snap.data() } as UserProfile;
   },
 
-  /** Partial update — always stamps updatedAt. */
+  /** Partial update — always stamps updatedAt. Strips undefined to avoid Firestore errors. */
   async update(uid: string, data: Partial<Omit<UserProfile, 'id' | 'createdAt'>>): Promise<void> {
     await updateDoc(doc(db, COLLECTION.USERS, uid), {
-      ...data,
+      ...stripUndefined(data as object),
       updatedAt: serverTimestamp(),
     });
   },
@@ -48,13 +60,10 @@ export const profileService = {
     });
   },
 
-  /** Upload a new avatar image to Firebase Storage and update the user document. */
+  /** Upload a new avatar image to Cloudinary and update the user document. */
   async uploadAvatar(uid: string, uri: string): Promise<string> {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const storageRef = ref(storage, `avatars/${uid}/profile.jpg`);
-    await uploadBytes(storageRef, blob);
-    const url = await getDownloadURL(storageRef);
+    const result = await uploadToCloudinary(uri, `profile-photos/${uid}`, 'image');
+    const url = result.secure_url;
     await updateDoc(doc(db, COLLECTION.USERS, uid), {
       photoURL: url,
       updatedAt: serverTimestamp(),
