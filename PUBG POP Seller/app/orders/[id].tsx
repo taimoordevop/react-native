@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -140,14 +141,24 @@ function PaymentDetailsPanel({ details }: { details: SellerPaymentDetails }) {
   );
 }
 
-function ProofImageGrid({ urls, label, color }: { urls: string[]; label: string; color: string }) {
+function ProofImageGrid({
+  urls,
+  label,
+  color,
+  onPressImage,
+}: {
+  urls: string[];
+  label: string;
+  color: string;
+  onPressImage?: (url: string) => void;
+}) {
   if (!urls || urls.length === 0) return null;
   return (
     <View className="mb-4">
       <Text className={`text-sm font-semibold mb-2 ${color}`}>{label} ({urls.length})</Text>
       <View className="flex-row flex-wrap gap-2">
         {urls.map((url, i) => (
-          <TouchableOpacity key={i} onPress={() => Alert.alert('Screenshot URL', url)}>
+          <TouchableOpacity key={i} onPress={() => onPressImage?.(url)}>
             <Image
               source={{ uri: url }}
               /* eslint-disable-next-line react-native/no-inline-styles */
@@ -157,12 +168,20 @@ function ProofImageGrid({ urls, label, color }: { urls: string[]; label: string;
           </TouchableOpacity>
         ))}
       </View>
-      <Text className="text-surface-400 text-xs mt-1">Tap screenshot to view URL</Text>
+      <Text className="text-surface-400 text-xs mt-1">Tap screenshot to view full size</Text>
     </View>
   );
 }
 
-function ProofVideoCard({ proof, index }: { proof: OrderProofVideo; index: number }) {
+function ProofVideoCard({
+  proof,
+  index,
+  onImagePress,
+}: {
+  proof: OrderProofVideo;
+  index: number;
+  onImagePress?: (url: string) => void;
+}) {
   const [playing, setPlaying] = useState(false);
   const videoRef = useRef<Video>(null);
   const isVideo = proof.type === 'video';
@@ -196,7 +215,7 @@ function ProofVideoCard({ proof, index }: { proof: OrderProofVideo; index: numbe
           )}
         </View>
       ) : (
-        <TouchableOpacity onPress={() => Alert.alert('Screenshot', proof.url)}>
+        <TouchableOpacity onPress={() => onImagePress?.(proof.url)}>
           <Image
             source={{ uri: proof.url }}
             /* eslint-disable-next-line react-native/no-inline-styles */
@@ -237,6 +256,7 @@ export default function OrderDetailScreen() {
   const confirmPayment = useConfirmPaymentReceived();
 
   const [sellerPayDetails, setSellerPayDetails] = useState<SellerPaymentDetails | null>(null);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!order?.supplierId) return;
@@ -317,6 +337,31 @@ export default function OrderDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
+      <Modal
+        visible={!!fullImageUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullImageUrl(null)}
+      >
+        <View className="flex-1 bg-black/90 items-center justify-center">
+          <TouchableOpacity
+            className="absolute top-10 right-4 px-3 py-2 rounded-full bg-black/60"
+            onPress={() => setFullImageUrl(null)}
+          >
+            <Text className="text-white text-sm">Close</Text>
+          </TouchableOpacity>
+          {fullImageUrl && (
+            <TouchableOpacity activeOpacity={1} onPress={() => setFullImageUrl(null)}>
+              <Image
+                source={{ uri: fullImageUrl }}
+                style={{ width: CARD_W, height: CARD_W * 1.4, borderRadius: 12 }}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      </Modal>
+
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
         <TouchableOpacity onPress={() => router.back()} className="mr-3">
@@ -369,6 +414,7 @@ export default function OrderDetailScreen() {
               urls={order.buyerPaymentProof}
               label="Buyer Payment Screenshots"
               color="text-yellow-400"
+              onPressImage={setFullImageUrl}
             />
           </View>
         )}
@@ -379,6 +425,7 @@ export default function OrderDetailScreen() {
               urls={order.supplierPayoutProof}
               label="Payout Proof (Supplier)"
               color="text-green-400"
+              onPressImage={setFullImageUrl}
             />
           </View>
         )}
@@ -401,7 +448,7 @@ export default function OrderDetailScreen() {
               </View>
             </View>
             {order.proofVideos.map((v, i) => (
-              <ProofVideoCard key={i} proof={v} index={i} />
+              <ProofVideoCard key={i} proof={v} index={i} onImagePress={setFullImageUrl} />
             ))}
           </View>
         )}

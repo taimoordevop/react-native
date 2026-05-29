@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,68 @@ export default function RegisterScreen() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Live display name uniqueness check
+  useEffect(() => {
+    const name = displayName.trim();
+    if (!name) {
+      setDisplayNameError(null);
+      return;
+    }
+    if (name.length < 3) {
+      setDisplayNameError('Name must be at least 3 characters');
+      return;
+    }
+
+    let active = true;
+    const handle = setTimeout(async () => {
+      try {
+        const available = await authService.isDisplayNameAvailable(name);
+        if (!active) return;
+        setDisplayNameError(available ? null : 'This name is already taken');
+      } catch (e) {
+        console.error('[AUTH] display name availability check failed:', e);
+      }
+    }, 400);
+
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [displayName]);
+
+  // Live email format + uniqueness check
+  useEffect(() => {
+    const value = email.trim().toLowerCase();
+    if (!value) {
+      setEmailError(null);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) {
+      setEmailError('Enter a valid email address');
+      return;
+    }
+
+    let active = true;
+    const handle = setTimeout(async () => {
+      try {
+        const available = await authService.isEmailAvailable(value);
+        if (!active) return;
+        setEmailError(available ? null : 'This email is already in use');
+      } catch (e) {
+        console.error('[AUTH] email availability check failed:', e);
+      }
+    }, 400);
+
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [email]);
 
   const handleRegister = async () => {
     if (!displayName || !email || !password || !confirm) {
@@ -33,12 +95,37 @@ export default function RegisterScreen() {
       setError('Password must be at least 6 characters');
       return;
     }
+    if (displayNameError) {
+      setError(displayNameError);
+      return;
+    }
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
+      const normalizedEmail = email.trim().toLowerCase();
+      const name = displayName.trim();
+
+      // Final server-side uniqueness check to avoid races
+      const [nameAvailable, emailAvailable] = await Promise.all([
+        authService.isDisplayNameAvailable(name),
+        authService.isEmailAvailable(normalizedEmail),
+      ]);
+
+      if (!nameAvailable) {
+        setError('This name is already taken');
+        return;
+      }
+      if (!emailAvailable) {
+        setError('This email is already in use');
+        return;
+      }
       // signUp creates the Firebase user + Firestore doc.
       // AuthProvider's onAuthStateChanged will fetch the profile and update the store.
-      await authService.signUp(email, password, displayName);
+      await authService.signUp(normalizedEmail, password, name);
       // New users always go through onboarding first.
       router.replace('/(auth)/onboarding/role-select');
     } catch (err) {

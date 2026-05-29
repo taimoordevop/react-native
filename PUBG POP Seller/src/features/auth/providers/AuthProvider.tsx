@@ -77,7 +77,7 @@ function buildFallbackProfile(firebaseUser: FirebaseUser): UserProfile {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { setUser, setLoading, setError, signOut, user, isAuthenticated, isLoading } =
+  const { setUser, setLoading, setError, signOut, user, isAuthenticated, isLoading, rememberMe } =
     useAuthStore();
 
   // Guard against calling setState after unmount
@@ -109,6 +109,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       console.log('[AUTH] Firebase user detected:', firebaseUser.uid);
+
+      // If the user chose not to be remembered, immediately clear any
+      // persisted Firebase session so the app always shows the login screen
+      // on next launch.
+      if (!rememberMe) {
+        clearTimeout(safetyTimer);
+        await authService.signOut();
+        return;
+      }
 
       try {
         console.log('[AUTH] Fetching Firestore profile...');
@@ -142,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearTimeout(safetyTimer);
       unsubscribe();
     };
-  }, [setUser, setLoading, setError, signOut]);
+  }, [setUser, setLoading, setError, signOut, rememberMe]);
 
   return (
     <AuthContext.Provider

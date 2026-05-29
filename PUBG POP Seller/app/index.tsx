@@ -7,7 +7,9 @@ export default function Index() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const navState = useRootNavigationState();
 
-  if (!navState?.key || isLoading) {
+  // Show global loading only while navigation is bootstrapping or
+  // authentication is still resolving for unauthenticated users.
+  if (!navState?.key || (isLoading && !isAuthenticated)) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#0ea5e9" />

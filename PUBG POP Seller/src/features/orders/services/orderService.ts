@@ -315,11 +315,22 @@ export const orderService = {
   },
 
   /** Real-time listener — fires callback on every change to the order */
-  subscribeToOrder(id: string, callback: (order: Order | null) => void): Unsubscribe {
-    return onSnapshot(doc(db, COLLECTION.ORDERS, id), (snap) => {
-      if (!snap.exists()) { callback(null); return; }
-      callback({ id: snap.id, ...snap.data() } as Order);
-    });
+  subscribeToOrder(
+    id: string,
+    callback: (order: Order | null) => void,
+    onError?: (err: Error) => void,
+  ): Unsubscribe {
+    return onSnapshot(
+      doc(db, COLLECTION.ORDERS, id),
+      (snap) => {
+        if (!snap.exists()) { callback(null); return; }
+        callback({ id: snap.id, ...snap.data() } as Order);
+      },
+      (err) => {
+        console.error('[orderService] subscribeToOrder error:', err.message);
+        onError?.(err);
+      },
+    );
   },
 
   /** Real-time listener for all orders belonging to a user (by role) */
@@ -327,6 +338,7 @@ export const orderService = {
     userId: string,
     role: 'buyer' | 'supplier',
     callback: (orders: Order[]) => void,
+    onError?: (err: Error) => void,
   ): Unsubscribe {
     const field = role === 'buyer' ? 'buyerId' : 'supplierId';
     const q = query(
@@ -334,8 +346,15 @@ export const orderService = {
       where(field, '==', userId),
       orderBy('createdAt', 'desc'),
     );
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
+      },
+      (err) => {
+        console.error('[orderService] subscribeToMyOrders error:', err.message);
+        onError?.(err);
+      },
+    );
   },
 };

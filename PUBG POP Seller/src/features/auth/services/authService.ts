@@ -5,7 +5,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where, limit } from 'firebase/firestore';
 
 import { COLLECTION } from '@/constants';
 import { auth, db } from '@/lib/firebase';
@@ -68,5 +68,30 @@ export const authService = {
     const snap = await getDoc(doc(db, COLLECTION.USERS, uid));
     if (!snap.exists()) return null;
     return { id: snap.id, ...snap.data() } as UserProfile;
+  },
+  /** Returns true if no other user already uses this displayName. */
+  async isDisplayNameAvailable(displayName: string): Promise<boolean> {
+    const name = displayName.trim();
+    if (!name) return false;
+    const q = query(
+      collection(db, COLLECTION.USERS),
+      where('displayName', '==', name),
+      limit(1),
+    );
+    const snap = await getDocs(q);
+    return snap.empty;
+  },
+
+  /** Returns true if no user already uses this email. */
+  async isEmailAvailable(email: string): Promise<boolean> {
+    const value = email.trim().toLowerCase();
+    if (!value) return false;
+    const q = query(
+      collection(db, COLLECTION.USERS),
+      where('email', '==', value),
+      limit(1),
+    );
+    const snap = await getDocs(q);
+    return snap.empty;
   },
 };

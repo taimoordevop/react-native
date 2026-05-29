@@ -19,12 +19,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.74;
 
 const SELLER_MENU = [
-  { label: 'Dashboard',     icon: '⊞', href: '/(seller)/dashboard' },
-  { label: 'Post Request',  icon: '＋', href: '/(seller)/post-request' },
-  { label: 'My Requests',   icon: '📋', href: '/(seller)/my-requests' },
-  { label: 'Buyer Orders',  icon: '🛒', href: '/(seller)/orders' },
-  { label: 'Analytics',     icon: '📊', href: '/(seller)/analytics' },
-  { label: 'Profile',       icon: '👤', href: '/(seller)/profile' },
+  { label: 'Dashboard',         icon: '⊞', href: '/(seller)/dashboard' },
+  { label: 'Post Request',      icon: '＋', href: '/(seller)/post-request' },
+  { label: 'My Requests',       icon: '📋', href: '/(seller)/my-requests' },
+  { label: 'Supplier Bookings', icon: '⚡', href: '/(seller)/bookings' },
+  { label: 'Buyer Orders',      icon: '🛒', href: '/(seller)/orders' },
+  { label: 'Analytics',         icon: '📊', href: '/(seller)/analytics' },
+  { label: 'Profile',           icon: '👤', href: '/(seller)/profile' },
 ];
 
 function SellerDrawer({
@@ -215,6 +216,14 @@ export default function SellerDashboard() {
                 <Text className="text-white text-xs font-bold">{openRequests.length}</Text>
               </View>
             )}
+            <Text className="text-surface-300">›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-surface-200 rounded-xl py-4 px-4 mb-3 flex-row items-center"
+            onPress={() => router.push('/(seller)/bookings' as never)}
+          >
+            <Text className="text-white font-medium flex-1">Supplier Bookings</Text>
             <Text className="text-surface-300">›</Text>
           </TouchableOpacity>
 

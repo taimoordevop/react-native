@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 
 import { authService } from '@/features/auth/services/authService';
@@ -10,7 +10,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { setLoading: setAuthLoading } = useAuthStore();
+  const { setLoading: setAuthLoading, rememberMe, setRememberMe, isAuthenticated } = useAuthStore();
+
+  // If the user is already authenticated (e.g. Firebase session + profile loaded),
+  // never keep them on the login screen — immediately send them through the
+  // normal index.tsx redirect flow.
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -24,7 +33,9 @@ export default function LoginScreen() {
       // Mark auth as loading BEFORE navigating so index.tsx shows the spinner
       // instead of briefly redirecting back to login (isAuthenticated is still
       // false until onAuthStateChanged fires and resolves the profile).
-      setAuthLoading(true);
+      if (!isAuthenticated) {
+        setAuthLoading(true);
+      }
       router.replace('/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed';
@@ -66,7 +77,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          <View className="mb-6">
+          <View className="mb-4">
             <Text className="text-surface-300 text-sm mb-2">Password</Text>
             <TextInput
               className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
@@ -77,6 +88,23 @@ export default function LoginScreen() {
               secureTextEntry
               autoComplete="password"
             />
+          </View>
+
+          <View className="flex-row items-center justify-between mb-6">
+            <TouchableOpacity
+              className="flex-row items-center"
+              activeOpacity={0.8}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View
+                className={`w-5 h-5 rounded-md mr-2 border items-center justify-center ${
+                  rememberMe ? 'bg-primary-500 border-primary-400' : 'border-surface-400'
+                }`}
+              >
+                {rememberMe && <Text className="text-white text-xs">✓</Text>}
+              </View>
+              <Text className="text-surface-300 text-sm">Remember me</Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity

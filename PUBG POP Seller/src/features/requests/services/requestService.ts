@@ -244,4 +244,19 @@ export const bookingService = {
       callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Booking));
     });
   },
+
+  /** Real-time listener for a seller's bookings (where they are the poster of the request) */
+  subscribeToSellerBookings(
+    sellerId: string,
+    callback: (bookings: Booking[]) => void,
+  ) {
+    const q = query(
+      collection(db, COLLECTION.BOOKINGS),
+      where('sellerId', '==', sellerId),
+      orderBy('createdAt', 'desc'),
+    );
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Booking));
+    });
+  },
 };

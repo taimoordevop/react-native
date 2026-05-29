@@ -120,6 +120,23 @@ export function useSupplierBookings(supplierId: string | undefined) {
   return { bookings, isLoading };
 }
 
+/** Real-time listener for a seller's bookings (bookings on their requests) */
+export function useSellerBookings(sellerId: string | undefined) {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!sellerId) { setIsLoading(false); return; }
+    const unsub = bookingService.subscribeToSellerBookings(sellerId, (data) => {
+      setBookings(data);
+      setIsLoading(false);
+    });
+    return unsub;
+  }, [sellerId]);
+
+  return { bookings, isLoading };
+}
+
 /** Supplier creates a booking */
 export function useCreateBooking() {
   const qc = useQueryClient();

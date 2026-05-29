@@ -197,8 +197,15 @@ export default function ProofUploadScreen() {
         },
       );
     } catch (e) {
+      console.error('[PROOF] Video upload failed:', e);
+      // Fall back to details screen and suggest alternate proof method.
       setStage('details');
-      setDetailsError(e instanceof Error ? e.message : 'Upload failed');
+      setUseUrlMode(true);
+      setDetailsError(
+        e instanceof Error
+          ? `${e.message} — you can also paste a direct video or screenshot link instead.`
+          : 'Upload failed — you can also paste a direct video or screenshot link instead.',
+      );
     }
   };
 
@@ -499,9 +506,10 @@ export default function ProofUploadScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface items-center justify-center px-6">
         <Text className="text-4xl mb-4">⬆️</Text>
-        <Text className="text-white text-lg font-bold mb-2">Uploading Video…</Text>
+        <Text className="text-white text-lg font-bold mb-2">Compressing & Uploading Video…</Text>
         <Text className="text-surface-300 text-sm mb-6 text-center">
-          Please keep the app open. This may take a moment depending on your connection.
+          Please keep the app open. This may take a few minutes for longer videos or slower
+          connections.
         </Text>
         {/* Progress bar */}
         <View className="w-full h-3 bg-surface-200 rounded-full overflow-hidden mb-3">

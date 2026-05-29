@@ -36,8 +36,12 @@ service cloud.firestore {
 
     // ── Users collection ──────────────────────────────────────────────────────
     match /users/{uid} {
-      // Owner can always read their own doc; admins can read all
-      allow read: if isOwner(uid) || isAdmin();
+      // Single-document get: owner can always read their own doc; admins can read all
+      allow get: if isOwner(uid) || isAdmin();
+
+      // List/query: allow public access so the client can check username/email uniqueness.
+      // App code only reads displayName and email for this purpose.
+      allow list: if true;
 
       // Only the owner can create their own document (written during signUp)
       allow create: if isOwner(uid);
