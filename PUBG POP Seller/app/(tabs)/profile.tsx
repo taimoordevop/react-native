@@ -59,6 +59,13 @@ export default function ProfileScreen() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Edit contact (WhatsApp + Drive) modal state
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [editWhatsapp, setEditWhatsapp] = useState(user?.whatsappNumber ?? '');
+  const [editDriveFolder, setEditDriveFolder] = useState(user?.googleDriveFolder ?? '');
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+
   // Payment method modal state
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
@@ -86,6 +93,51 @@ export default function ProfileScreen() {
     setEditNickname(user?.pubgNickname ?? '');
     setEditError(null);
     setEditModalVisible(true);
+  };
+
+  const openEditContactModal = () => {
+    setEditWhatsapp(user?.whatsappNumber ?? '');
+    setEditDriveFolder(user?.googleDriveFolder ?? '');
+    setContactError(null);
+    setContactModalVisible(true);
+  };
+
+  const handleSaveContactInfo = async () => {
+    const cleanWhatsapp = editWhatsapp.trim();
+    const cleanDrive = editDriveFolder.trim();
+
+    if (!cleanWhatsapp) {
+      setContactError('WhatsApp number is required.');
+      return;
+    }
+    if (!cleanWhatsapp.startsWith('+92')) {
+      setContactError('WhatsApp number must start with country code +92 (e.g. +923001234567)');
+      return;
+    }
+    if (!/^\+92\d{10}$/.test(cleanWhatsapp)) {
+      setContactError('WhatsApp number must have +92 followed by exactly 10 digits.');
+      return;
+    }
+
+    if (!user) return;
+    try {
+      setContactLoading(true);
+      setContactError(null);
+      await profileService.update(user.uid, {
+        whatsappNumber: cleanWhatsapp,
+        googleDriveFolder: cleanDrive || null,
+      });
+      setUser({
+        ...user,
+        whatsappNumber: cleanWhatsapp,
+        googleDriveFolder: cleanDrive || null,
+      });
+      setContactModalVisible(false);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'Failed to update. Please try again.');
+    } finally {
+      setContactLoading(false);
+    }
   };
 
   const handleSavePubgInfo = async () => {
@@ -265,6 +317,27 @@ export default function ProfileScreen() {
           <View className="flex-row justify-between py-2">
             <Text className="text-surface-300 text-sm">Server</Text>
             <Text className="text-white text-sm">{user?.pubgServer ?? 'Not set'}</Text>
+          </View>
+        </View>
+
+        {/* ── Contact & Storage Card ── */}
+        <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-white font-semibold">Contact & Storage</Text>
+            <TouchableOpacity onPress={openEditContactModal}>
+              <Text className="text-primary-400 text-sm">Edit</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="flex-row justify-between py-2 border-b border-surface-200">
+            <Text className="text-surface-300 text-sm">WhatsApp Number</Text>
+            <Text className="text-white text-sm">{user?.whatsappNumber ?? 'Not set'}</Text>
+          </View>
+          <View className="flex-row justify-between py-2">
+            <Text className="text-surface-300 text-sm">Google Drive Folder</Text>
+            <Text className="text-white text-sm flex-1 text-right ml-4" numberOfLines={1}>
+              {user?.googleDriveFolder ?? 'Not set'}
+            </Text>
           </View>
         </View>
 
@@ -551,6 +624,81 @@ export default function ProfileScreen() {
                 disabled={editLoading}
               >
                 {editLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold">Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Edit Contact Info Modal ── */}
+      <Modal
+        visible={contactModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setContactModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-surface rounded-t-3xl p-6">
+            <Text className="text-white text-xl font-bold mb-1">Edit Contact & Storage</Text>
+            <Text className="text-surface-300 text-sm mb-6">
+              Provide your active WhatsApp number and optional Google Drive folder URL.
+            </Text>
+
+            <View className="mb-4">
+              <Text className="text-surface-300 text-sm mb-2">WhatsApp Number *</Text>
+              <TextInput
+                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                value={editWhatsapp}
+                onChangeText={(v) => { setEditWhatsapp(v); setContactError(null); }}
+                placeholder="e.g. +923001234567"
+                placeholderTextColor="#475569"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="phone-pad"
+              />
+              <Text className="text-surface-400 text-xs mt-1">
+                Must start with country code +92 (exactly 12 characters, e.g., +923001234567).
+              </Text>
+            </View>
+
+            <View className="mb-5">
+              <Text className="text-surface-300 text-sm mb-2">Google Drive Folder URL (optional)</Text>
+              <TextInput
+                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-sm"
+                value={editDriveFolder}
+                onChangeText={(v) => { setEditDriveFolder(v); setContactError(null); }}
+                placeholder="e.g. https://drive.google.com/drive/folders/..."
+                placeholderTextColor="#475569"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+            </View>
+
+            {contactError && (
+              <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
+                <Text className="text-red-400 text-sm">{contactError}</Text>
+              </View>
+            )}
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                onPress={() => setContactModalVisible(false)}
+                disabled={contactLoading}
+              >
+                <Text className="text-white font-semibold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 rounded-xl py-4 items-center ${contactLoading ? 'bg-surface-200' : 'bg-primary-500'}`}
+                onPress={handleSaveContactInfo}
+                disabled={contactLoading}
+              >
+                {contactLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text className="text-white font-semibold">Save</Text>

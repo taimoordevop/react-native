@@ -202,7 +202,23 @@ export const orderService = {
     await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
       proofVideos: arrayUnion(videoEntry),
       status: 'proof_submitted',
+      proofMethod: 'uploaded',
       updatedAt: serverTimestamp(),
+    });
+  },
+
+  /** Update proof method directly */
+  async updateProofMethod(id: string, proofMethod: 'uploaded' | 'whatsapp'): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, id), {
+      proofMethod,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  /** Seller marks that proof was received via WhatsApp, transitioning to proof_submitted with whatsapp proofMethod */
+  async markProofReceivedViaWhatsApp(id: string): Promise<void> {
+    await this.updateStatus(id, 'proof_submitted', {
+      proofMethod: 'whatsapp',
     });
   },
 

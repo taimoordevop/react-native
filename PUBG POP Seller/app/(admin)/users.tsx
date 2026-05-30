@@ -18,6 +18,7 @@ import type { UserProfile, UserRole } from '@/shared/types';
 const ROLE_BADGE: Record<UserRole, { bg: string; text: string }> = {
   buyer:    { bg: 'bg-blue-500/20',   text: 'text-blue-400' },
   supplier: { bg: 'bg-green-500/20',  text: 'text-green-400' },
+  seller:   { bg: 'bg-orange-500/20', text: 'text-orange-400' },
   admin:    { bg: 'bg-purple-500/20', text: 'text-purple-400' },
 };
 

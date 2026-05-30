@@ -53,7 +53,7 @@ service cloud.firestore {
           'displayName', 'photoURL', 'bio',
           'pubgId', 'pubgNickname', 'pubgServer',
           'fcmToken', 'onboardingCompleted', 'updatedAt',
-          'role', 'paymentDetails'
+          'role', 'paymentDetails', 'whatsappNumber', 'googleDriveFolder'
         ]);
 
       // Admins can update any user field (for moderation / manual role assignment)

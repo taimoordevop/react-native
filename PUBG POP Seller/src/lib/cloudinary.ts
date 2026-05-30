@@ -48,11 +48,7 @@ export async function uploadToCloudinary(
   formData.append('api_key', API_KEY);
   formData.append('folder', folder);
   if (resourceType === 'video') {
-    // Hint Cloudinary to treat as video and apply a conservative transformation
-    // (q_auto, mp4, max width 720, crop limit). The exact transformation must be
-    // allowed by the unsigned preset in the Cloudinary dashboard.
     formData.append('resource_type', 'video');
-    formData.append('transformation', 'q_auto,f_mp4,w_720,c_limit');
   } else {
     formData.append('resource_type', 'image');
   }

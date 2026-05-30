@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Video, ResizeMode } from 'expo-av';
@@ -17,18 +19,13 @@ import { Video, ResizeMode } from 'expo-av';
 import { useAuth } from '@/features/auth/providers/AuthProvider';
 import { useSubmitProof } from '@/features/orders/hooks/useOrders';
 import { orderService } from '@/features/orders/services/orderService';
+import { profileService } from '@/features/profile/services/profileService';
+import type { Order, UserProfile } from '@/shared/types';
 
 type Stage = 'guide' | 'recording' | 'preview' | 'details' | 'uploading';
 
 const MAX_DURATION_S = 60;
 const { width: SCREEN_W } = Dimensions.get('window');
-
-const STEPS = [
-  { icon: '🎮', text: 'Open PUBG Mobile on your phone' },
-  { icon: '🔍', text: 'Search the Buyer PUBG ID' },
-  { icon: '🎁', text: 'Send Unknown Cash / Gifts' },
-  { icon: '⏹', text: 'Stop recording — upload here' },
-];
 
 export default function ProofUploadScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
@@ -45,6 +42,11 @@ export default function ProofUploadScreen() {
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Hybrid Flow & Role states
+  const [order, setOrder] = useState<Order | null>(null);
+  const [sellerProfile, setSellerProfile] = useState<UserProfile | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(true);
+
   // Details stage state
   const [diamondsSent, setDiamondsSent] = useState('');
   const [notes, setNotes] = useState('');
@@ -54,6 +56,24 @@ export default function ProofUploadScreen() {
   // Fallback URL mode
   const [useUrlMode, setUseUrlMode] = useState(false);
   const [manualUrl, setManualUrl] = useState('');
+
+  // Fetch Order & Seller details on mount
+  useEffect(() => {
+    if (orderId) {
+      setLoadingOrder(true);
+      orderService.getById(orderId).then(async (ord) => {
+        if (ord) {
+          setOrder(ord);
+          // order.supplierId is the Seller who brokered the deal
+          const profile = await profileService.getById(ord.supplierId);
+          setSellerProfile(profile);
+        }
+        setLoadingOrder(false);
+      }).catch(() => {
+        setLoadingOrder(false);
+      });
+    }
+  }, [orderId]);
 
   useEffect(() => {
     return () => {
@@ -68,6 +88,70 @@ export default function ProofUploadScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, isRecording]);
+
+  const handlePickGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please allow photo library access to upload proof files.',
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos', 'images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setRecordedUri(asset.uri);
+      if (asset.type === 'video') {
+        setElapsed(Math.round((asset.duration ?? 0) / 1000) || 10);
+        setStage('preview');
+      } else {
+        setStage('details');
+        setUseUrlMode(false);
+      }
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!order) {
+      Alert.alert('Error', 'Order details not loaded yet.');
+      return;
+    }
+
+    const whatsappNum = sellerProfile?.whatsappNumber ?? '+923001234567';
+
+    const richMessage = `*PUBG POP ORDER ESCROW PROOF*
+----------------------------------------
+*Order ID:* ${order.id}
+*Amount:* ${order.popAmount.toLocaleString()} POP
+*Target PUBG ID:* ${order.targetPubgId}
+*Buyer Nickname:* ${order.buyerName}
+*Supplier Name:* ${user?.displayName ?? 'Supplier'}
+*Method:* WhatsApp Hybrid Fallback
+
+Hello! I have completed POP delivery in PUBG for the order above. I am sending the screen recording proof here. Please verify and release escrow payout!`;
+
+    const cleanPhone = whatsappNum.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(richMessage)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await orderService.updateProofMethod(order.id, 'whatsapp');
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(
+          'WhatsApp Required',
+          'WhatsApp is not installed on this device. Please install WhatsApp to use this fallback option.',
+        );
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to open WhatsApp.');
+    }
+  };
 
   const ensurePermissions = async () => {
     let cam = camPerm;
@@ -165,12 +249,15 @@ export default function ProofUploadScreen() {
       setStage('uploading');
       setUploadProgress(0);
 
-      // Uploads to Cloudinary via orderService (Firebase Storage removed)
+      const isVideo = recordedUri.endsWith('.mp4') || recordedUri.includes('video') || recordedUri.includes('mp4');
+      const ext = isVideo ? 'mp4' : 'jpg';
+
+      // Uploads to Cloudinary via orderService
       const url = await orderService.uploadVideoProof(
         orderId,
         user.uid,
         recordedUri,
-        'mp4',
+        ext,
         (pct) => setUploadProgress(pct),
       );
 
@@ -180,14 +267,14 @@ export default function ProofUploadScreen() {
           supplierId: user.uid,
           url,
           diamondsSent: diamonds,
-          type: 'video',
+          type: isVideo ? 'video' : 'screenshot',
           notes: notes.trim() || undefined,
         },
         {
           onSuccess: () =>
             Alert.alert(
               'Proof Submitted! ✓',
-              `Video uploaded. ${diamonds.toLocaleString()} POP proof recorded.`,
+              `File uploaded successfully. ${diamonds.toLocaleString()} POP proof recorded.`,
               [{ text: 'OK', onPress: () => router.back() }],
             ),
           onError: (e) => {
@@ -197,8 +284,7 @@ export default function ProofUploadScreen() {
         },
       );
     } catch (e) {
-      console.error('[PROOF] Video upload failed:', e);
-      // Fall back to details screen and suggest alternate proof method.
+      console.error('[PROOF] File upload failed:', e);
       setStage('details');
       setUseUrlMode(true);
       setDetailsError(
@@ -217,69 +303,112 @@ export default function ProofUploadScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
             <Text className="text-primary-400 text-base">← Back</Text>
           </TouchableOpacity>
-          <Text className="text-white text-lg font-bold flex-1">Submit POP Proof</Text>
+          <Text className="text-white text-lg font-bold flex-1">POP Proof Submission</Text>
         </View>
 
-        <ScrollView
-          /* eslint-disable-next-line react-native/no-inline-styles */
-          contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-        >
-          <View className="items-center mb-6">
-            <Text className="text-4xl mb-3">🎬</Text>
-            <Text className="text-white text-xl font-bold text-center mb-2">
-              Record Your Screen
-            </Text>
-            <Text className="text-surface-300 text-sm text-center leading-5">
-              Record a short screen video (max 60 sec) showing you sending the POP inside PUBG
-              Mobile. This proves delivery to the buyer.
-            </Text>
+        {loadingOrder ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator color="#0ea5e9" size="large" />
           </View>
+        ) : (
+          <ScrollView
+            /* eslint-disable-next-line react-native/no-inline-styles */
+            contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+          >
+            <View className="items-center mb-6">
+              <Text className="text-4xl mb-3">🛡️</Text>
+              <Text className="text-white text-xl font-bold text-center mb-2">
+                Hybrid Proof Submission
+              </Text>
+              <Text className="text-surface-300 text-sm text-center leading-5 px-2">
+                Choose between secure in-app upload (recommended) or instant WhatsApp fallback to submit your popularity delivery proof.
+              </Text>
+            </View>
 
-          {/* Steps */}
-          <View className="bg-surface-100 rounded-2xl p-4 mb-6">
-            <Text className="text-white font-semibold mb-4">Follow These Steps:</Text>
-            {STEPS.map((step, i) => (
-              <View key={i} className="flex-row items-start mb-3">
-                <View className="bg-primary-500/20 rounded-full w-8 h-8 items-center justify-center mr-3 mt-0.5">
-                  <Text className="text-base">{step.icon}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-surface-300 text-sm leading-5">
-                    <Text className="text-primary-400 font-semibold">Step {i + 1}: </Text>
-                    {step.text}
-                  </Text>
+            {/* ───── OPTION A: IN-APP UPLOAD (Primary) ───── */}
+            <View className="bg-surface-100 border border-purple-500/30 rounded-2xl p-4 mb-6">
+              <View className="flex-row items-center gap-2 mb-3">
+                <Text className="text-purple-400 font-bold text-base">Option A: In-App Upload</Text>
+                <View className="bg-purple-500/20 rounded-full px-2 py-0.5">
+                  <Text className="text-purple-400 text-xs font-bold">Primary</Text>
                 </View>
               </View>
-            ))}
-          </View>
+              <Text className="text-surface-300 text-xs mb-4 leading-4">
+                Upload your screen recording directly to Cloudinary. It keeps proof attached to this order for secure automatic verification.
+              </Text>
 
-          {/* Tips */}
-          <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-6">
-            <Text className="text-yellow-400 font-semibold mb-2">⚡ Tips</Text>
-            <Text className="text-surface-300 text-sm leading-5">
-              • Make sure the PUBG ID is visible on screen.{'\n'}
-              • Show the gift/send animation clearly.{'\n'}
-              • Keep video under 60 seconds.{'\n'}
-              • Good lighting = clearer proof.
-            </Text>
-          </View>
+              {user?.role === 'supplier' ? (
+                // Supplier sees Recorder + Gallery upload
+                <View className="gap-3">
+                  <TouchableOpacity
+                    className="bg-purple-600 rounded-xl py-3.5 items-center flex-row justify-center gap-2"
+                    onPress={handleStartRecording}
+                  >
+                    <Text className="text-white text-lg">🎥</Text>
+                    <Text className="text-white font-bold text-sm">Start Screen Recorder</Text>
+                  </TouchableOpacity>
 
-          {/* Primary action */}
-          <TouchableOpacity
-            className="bg-purple-600 rounded-2xl py-4 items-center mb-3"
-            onPress={handleStartRecording}
-          >
-            <Text className="text-white font-bold text-base">🎥 Start Recording Now</Text>
-          </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-surface-200 border border-surface-300 rounded-xl py-3 items-center flex-row justify-center gap-2"
+                    onPress={handlePickGallery}
+                  >
+                    <Text className="text-white text-base">📁</Text>
+                    <Text className="text-white font-semibold text-xs">Select Video/Image from Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Seller (or other roles) sees only Upload/Gallery + Paste URL
+                <View className="gap-3">
+                  <TouchableOpacity
+                    className="bg-purple-600 rounded-xl py-3.5 items-center flex-row justify-center gap-2"
+                    onPress={handlePickGallery}
+                  >
+                    <Text className="text-white text-lg">📁</Text>
+                    <Text className="text-white font-bold text-sm">Select Proof File from Device</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-          {/* Fallback — paste URL */}
-          <TouchableOpacity
-            className="border border-surface-200 rounded-2xl py-3 items-center"
-            onPress={() => { setUseUrlMode(true); setStage('details'); }}
-          >
-            <Text className="text-surface-300 text-sm">Paste a video/screenshot link instead</Text>
-          </TouchableOpacity>
-        </ScrollView>
+              <TouchableOpacity
+                className="mt-3 py-1 items-center"
+                onPress={() => { setUseUrlMode(true); setStage('details'); }}
+              >
+                <Text className="text-primary-400 text-xs font-medium">🔗 Or paste a direct shareable link instead</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ───── OPTION B: WHATSAPP FALLBACK (Secondary) ───── */}
+            <View className="bg-surface-100 border border-green-500/20 rounded-2xl p-4 mb-6">
+              <View className="flex-row items-center gap-2 mb-3">
+                <Text className="text-green-400 font-bold text-base">Option B: Send via WhatsApp</Text>
+                <View className="bg-green-500/20 rounded-full px-2 py-0.5">
+                  <Text className="text-green-400 text-xs font-bold">Fallback</Text>
+                </View>
+              </View>
+              <Text className="text-surface-300 text-xs mb-4 leading-4">
+                If the in-app upload is failing or taking too long, use our auto-generated WhatsApp fallback. It opens WhatsApp directly with the broker.
+              </Text>
+
+              <TouchableOpacity
+                className="bg-green-600 rounded-xl py-3.5 items-center flex-row justify-center gap-2"
+                onPress={handleSendWhatsApp}
+              >
+                <Text className="text-white text-lg">💬</Text>
+                <Text className="text-white font-bold text-sm">Send Proof via WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Tips for successful transaction */}
+            <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4">
+              <Text className="text-yellow-400 font-semibold mb-2">⚡ Proof Guidelines</Text>
+              <Text className="text-surface-300 text-xs leading-4">
+                • Target PUBG ID ({order?.targetPubgId ?? 'Not loaded'}) must be clearly visible.{'\n'}
+                • Show the in-game delivery/gift pop-up message.{'\n'}
+                • Good lighting and resolution ensure faster release of escrow funds.
+              </Text>
+            </View>
+          </ScrollView>
+        )}
       </SafeAreaView>
     );
   }
@@ -436,9 +565,11 @@ export default function ProofUploadScreen() {
             </View>
           ) : (
             <View className="bg-surface-100 rounded-2xl p-3 mb-4 flex-row items-center gap-3">
-              <Text className="text-2xl">🎬</Text>
+              <Text className="text-2xl">{recordedUri?.endsWith('.mp4') || recordedUri?.includes('video') || recordedUri?.includes('mp4') ? '🎬' : '📸'}</Text>
               <Text className="text-green-400 text-sm font-semibold flex-1">
-                Video recorded ({elapsed}s) — ready to upload
+                {recordedUri?.endsWith('.mp4') || recordedUri?.includes('video') || recordedUri?.includes('mp4')
+                  ? `Video ready (${elapsed}s) — ready to upload`
+                  : 'Image screenshot — ready to upload'}
               </Text>
             </View>
           )}
@@ -490,9 +621,13 @@ export default function ProofUploadScreen() {
           >
             {submitProof.isPending ? (
               <ActivityIndicator color="#fff" />
-            ) : (
+             ) : (
               <Text className="text-white font-bold text-base">
-                {useUrlMode ? 'Submit Proof Link' : '⬆ Upload Proof Video'}
+                {useUrlMode
+                  ? 'Submit Proof Link'
+                  : recordedUri?.endsWith('.mp4') || recordedUri?.includes('video') || recordedUri?.includes('mp4')
+                  ? '⬆ Upload Proof Video'
+                  : '⬆ Upload Proof Screenshot'}
               </Text>
             )}
           </TouchableOpacity>

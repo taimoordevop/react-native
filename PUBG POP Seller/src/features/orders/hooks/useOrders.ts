@@ -169,3 +169,15 @@ export function useSubmitSellerPayoutProof() {
     },
   });
 }
+
+/** Seller marks proof received via WhatsApp — transitions in_progress → proof_submitted */
+export function useMarkProofReceivedViaWhatsApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => orderService.markProofReceivedViaWhatsApp(orderId),
+    onSuccess: (_data, orderId) => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDER, orderId] });
+    },
+  });
+}

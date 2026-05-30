@@ -58,6 +58,8 @@ export interface UserProfile extends BaseDocument {
   // True once user has completed role + PUBG onboarding
   onboardingCompleted: boolean;
   fcmToken: string | null;
+  whatsappNumber?: string | null;
+  googleDriveFolder?: string | null;
 }
 
 export type ListingStatus = 'active' | 'expired' | 'sold_out';
@@ -125,6 +127,7 @@ export interface Order extends BaseDocument {
   supplierPayoutProof: string[];
   completedAt: FirestoreTimestamp | null;
   expiresAt: FirestoreTimestamp | null;
+  proofMethod?: 'uploaded' | 'whatsapp';
 }
 
 export interface Proof extends BaseDocument {

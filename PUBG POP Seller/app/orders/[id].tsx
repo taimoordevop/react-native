@@ -12,6 +12,7 @@ import {
   Image,
   Dimensions,
   Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,9 +22,11 @@ import {
   useUpdateOrderStatus,
   useVerifyAndComplete,
   useConfirmPaymentReceived,
+  useMarkProofReceivedViaWhatsApp,
 } from '@/features/orders/hooks/useOrders';
+import { orderService } from '@/features/orders/services/orderService';
 import { profileService } from '@/features/profile/services/profileService';
-import type { OrderProofVideo, OrderStatus, SellerPaymentDetails } from '@/shared/types';
+import type { Order, OrderProofVideo, OrderStatus, SellerPaymentDetails, UserProfile } from '@/shared/types';
 
 const CARD_W = Dimensions.get('window').width - 32;
 
@@ -254,16 +257,41 @@ export default function OrderDetailScreen() {
   const updateStatus = useUpdateOrderStatus();
   const verifyComplete = useVerifyAndComplete();
   const confirmPayment = useConfirmPaymentReceived();
+  const markProofWhatsApp = useMarkProofReceivedViaWhatsApp();
 
   const [sellerPayDetails, setSellerPayDetails] = useState<SellerPaymentDetails | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
+  // Hybrid Flow & Buyer Forwarding states
+  const [forwardModalVisible, setForwardModalVisible] = useState(false);
+  const [recentBuyers, setRecentBuyers] = useState<{ id: string; name: string }[]>([]);
+
   useEffect(() => {
     if (!order?.supplierId) return;
-    profileService.getById(order.supplierId).then((profile) => {
+    profileService.getById(order.supplierId).then((profile: UserProfile | null) => {
       setSellerPayDetails(profile?.paymentDetails ?? null);
     });
   }, [order?.supplierId]);
+
+  // Fetch unique buyers associated with the seller's requests/orders
+  useEffect(() => {
+    if (!order?.supplierId) return;
+    orderService.getBySupplier(order.supplierId).then((ordersList: Order[]) => {
+      const uniqueBuyers = new Map<string, string>();
+      // Current buyer is always primary/first
+      if (order.buyerId && order.buyerName) {
+        uniqueBuyers.set(order.buyerId, order.buyerName);
+      }
+      // Add other unique buyers from recent seller transactions
+      ordersList.forEach((o: Order) => {
+        if (o.buyerId && o.buyerName) {
+          uniqueBuyers.set(o.buyerId, o.buyerName);
+        }
+      });
+      const list = Array.from(uniqueBuyers.entries()).map(([buyerUid, name]) => ({ id: buyerUid, name }));
+      setRecentBuyers(list);
+    }).catch(() => {});
+  }, [order?.supplierId, order?.buyerId, order?.buyerName]);
 
   if (isLoading) {
     return (
@@ -333,7 +361,65 @@ export default function OrderDetailScreen() {
       () => confirmPayment.mutate(order.id),
     );
 
-  const isMutating = updateStatus.isPending || verifyComplete.isPending || confirmPayment.isPending;
+  const handleMarkProofWhatsApp = () =>
+    confirmAction(
+      'Mark WhatsApp Proof Received',
+      'Confirm you received the popularity delivery proof from the supplier via WhatsApp fallback?',
+      () => markProofWhatsApp.mutate(order.id),
+    );
+
+  const handleForwardToBuyer = async (buyerId: string, buyerName: string) => {
+    try {
+      const profile = await profileService.getById(buyerId);
+      const whatsappNum = profile?.whatsappNumber;
+
+      if (!whatsappNum) {
+        Alert.alert(
+          'WhatsApp Number Missing',
+          `${buyerName} has not added their WhatsApp number. Instruct them to add it under Profile > Contact & Storage.`,
+        );
+        return;
+      }
+
+      // Format rich text prefilled message
+      const videoLinks = order.proofVideos
+        .map((pv, idx) => `*Proof #${idx + 1} (${pv.type}):* ${pv.url}`)
+        .join('\n');
+
+      const message = `*PUBG POP DELIVERY PROOF (FORWARDED)*
+----------------------------------------
+Hello ${buyerName}!
+Your PUBG popularity delivery has been processed by the seller.
+
+*Order Details:*
+- *Order ID:* ${order.id}
+- *Amount:* ${order.popAmount.toLocaleString()} POP
+- *Delivery Method:* ${order.proofMethod === 'whatsapp' ? 'WhatsApp Fallback' : 'In-App Secure Upload'}
+
+${videoLinks ? `*Uploaded Proof Links:*\n${videoLinks}` : '*Notice:* Proof has been submitted via WhatsApp fallback and is being validated.'}
+
+Please check your PUBG game and open the app to click *I Received POP — Confirm* to complete the order!`;
+
+      const cleanPhone = whatsappNum.replace(/[^0-9]/g, '');
+      const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        setForwardModalVisible(false);
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'WhatsApp is not installed on this device.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to generate WhatsApp forwarding message.');
+    }
+  };
+
+  const isMutating =
+    updateStatus.isPending ||
+    verifyComplete.isPending ||
+    confirmPayment.isPending ||
+    markProofWhatsApp.isPending;
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -590,10 +676,8 @@ export default function OrderDetailScreen() {
                 </Text>
               </View>
             )}
-
-            {/* In progress — send POP proof (can add multiple) */}
             {order.status === 'in_progress' && (
-              <>
+              <View className="gap-3">
                 {order.proofVideos.length > 0 && (
                   <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-3 mb-1">
                     <Text className="text-purple-400 text-sm font-semibold">
@@ -605,6 +689,7 @@ export default function OrderDetailScreen() {
                     </Text>
                   </View>
                 )}
+                
                 <TouchableOpacity
                   className="bg-purple-600 rounded-2xl py-4 items-center"
                   onPress={() =>
@@ -618,24 +703,40 @@ export default function OrderDetailScreen() {
                     {order.proofVideos.length > 0 ? '+ Add More Proof' : '📹 Upload POP Delivery Proof'}
                   </Text>
                 </TouchableOpacity>
-              </>
+
+                <TouchableOpacity
+                  className="border border-green-600 bg-green-500/10 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                  onPress={handleMarkProofWhatsApp}
+                  disabled={isMutating}
+                >
+                  <Text className="text-green-400 text-lg">💬</Text>
+                  <Text className="text-green-400 font-bold text-base">Mark Proof Received via WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {/* Proof submitted — seller reviews and verifies */}
             {order.status === 'proof_submitted' && (
-              <>
+              <View className="gap-3">
                 <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 mb-1">
                   <Text className="text-purple-400 font-semibold mb-1">
                     🎬 Proof Submitted for Review
                   </Text>
-                  <Text className="text-surface-300 text-xs">
-                    {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} ·{' '}
-                    {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 total
-                  </Text>
+                  {order.proofMethod === 'whatsapp' ? (
+                    <Text className="text-green-400 text-xs font-semibold mb-1">
+                      ✓ Received via WhatsApp Fallback
+                    </Text>
+                  ) : (
+                    <Text className="text-surface-300 text-xs">
+                      {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} ·{' '}
+                      {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 total
+                    </Text>
+                  )}
                   <Text className="text-surface-400 text-xs mt-1">
-                    Review the videos above, then verify if POP was delivered correctly.
+                    Review the proof details, then verify if POP was delivered correctly.
                   </Text>
                 </View>
+
                 <TouchableOpacity
                   className={`rounded-2xl py-4 items-center ${isMutating ? 'bg-surface-200' : 'bg-green-600'}`}
                   onPress={handleSellerVerifyProof}
@@ -645,6 +746,15 @@ export default function OrderDetailScreen() {
                     <Text className="text-white font-bold text-base">✓ Verify Delivery &amp; Release</Text>
                   )}
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="bg-primary-500 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                  onPress={() => setForwardModalVisible(true)}
+                >
+                  <Text className="text-white text-lg">💬</Text>
+                  <Text className="text-white font-bold text-base">Forward Proof to Buyer</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   className="bg-surface-100 rounded-2xl py-3 items-center"
                   onPress={() =>
@@ -656,7 +766,7 @@ export default function OrderDetailScreen() {
                 >
                   <Text className="text-surface-300 text-sm">+ Request More Proof / Add Segment</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
 
             {/* Buyer verified POP — seller uploads payout proof to their POP supplier */}
@@ -697,6 +807,57 @@ export default function OrderDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Forward Proof to Buyer Modal ── */}
+      <Modal
+        visible={forwardModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setForwardModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-surface rounded-t-3xl p-6 max-h-[70%]">
+            <Text className="text-white text-xl font-bold mb-1">Forward POP Proof</Text>
+            <Text className="text-surface-300 text-sm mb-6">
+              Select which Buyer associated with this request to forward the pre-filled proof text to via WhatsApp.
+            </Text>
+
+            <ScrollView className="mb-6">
+              {recentBuyers.length === 0 ? (
+                <View className="bg-surface-100 rounded-2xl p-4 items-center">
+                  <Text className="text-surface-300 text-sm text-center">No buyers found.</Text>
+                </View>
+              ) : (
+                recentBuyers.map((b) => (
+                  <TouchableOpacity
+                    key={b.id}
+                    className="flex-row items-center justify-between bg-surface-100 rounded-2xl p-4 mb-3 border border-surface-200"
+                    onPress={() => handleForwardToBuyer(b.id, b.name)}
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <View className="bg-primary-500/20 w-10 h-10 rounded-full items-center justify-center">
+                        <Text className="text-primary-400 font-bold text-base">👤</Text>
+                      </View>
+                      <View>
+                        <Text className="text-white font-bold text-base">{b.name}</Text>
+                        <Text className="text-surface-300 text-xs">{b.id === order.buyerId ? 'Current Buyer (Primary)' : 'Recent Buyer'}</Text>
+                      </View>
+                    </View>
+                    <Text className="text-primary-400 text-base">Forward →</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              className="bg-surface-200 rounded-2xl py-4 items-center"
+              onPress={() => setForwardModalVisible(false)}
+            >
+              <Text className="text-white font-bold">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
