@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,13 @@ export default function PostRequestScreen() {
   const { user } = useAuthStore();
   const { mutate: createRequest, isPending } = useCreateRequest();
 
+  const params = useLocalSearchParams<{
+    buyerOrderId?: string;
+    buyerPubgId?: string;
+    popAmount?: string;
+    rate?: string;
+  }>();
+
   const [audience, setAudience] = useState<'buyer' | 'supplier'>('buyer');
   const [popAmount, setPopAmount] = useState('');
   const [rate, setRate] = useState('');
@@ -30,6 +37,16 @@ export default function PostRequestScreen() {
   const [destinationPubgId, setDestinationPubgId] = useState('');
   const [deliveryDeadline, setDeliveryDeadline] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Prefill states when navigated contextually from a buyer order
+  useEffect(() => {
+    if (params.buyerOrderId) {
+      setAudience('supplier');
+      if (params.popAmount) setPopAmount(params.popAmount);
+      if (params.rate) setRate(params.rate);
+      if (params.buyerPubgId) setDestinationPubgId(params.buyerPubgId);
+    }
+  }, [params.buyerOrderId, params.popAmount, params.rate, params.buyerPubgId]);
 
   const popNum = Number(popAmount.replace(/,/g, ''));
   const rateNum = Number(rate);
@@ -58,15 +75,29 @@ export default function PostRequestScreen() {
         notes: notes.trim() || null,
         destinationPubgId: audience === 'supplier' ? (destinationPubgId.trim() || null) : null,
         deliveryDeadline: audience === 'supplier' ? (deliveryDeadline.trim() || null) : null,
+        buyerOrderId: params.buyerOrderId || null,
+        buyerPubgId: params.buyerPubgId || null,
       },
       {
         onSuccess: () => {
           Alert.alert(
-            'Request Posted!',
-            audience === 'buyer'
+            params.buyerOrderId ? 'Linked Request Created!' : 'Request Posted!',
+            params.buyerOrderId
+              ? 'Supplier request successfully created and linked to Buyer Order.'
+              : audience === 'buyer'
               ? 'Buyers can now browse and order from this request.'
               : 'Suppliers can now see and book this request.',
-            [{ text: 'View My Requests', onPress: () => router.replace('/(seller)/my-requests' as never) }],
+            [
+              {
+                text: audience === 'buyer' ? 'View Buyer Requests' : 'View Supplier Requests',
+                onPress: () =>
+                  router.replace(
+                    audience === 'buyer'
+                      ? '/(seller)/buyer-requests'
+                      : '/(seller)/supplier-requests' as never,
+                  ),
+              },
+            ],
           );
         },
         onError: (e) => setError(e instanceof Error ? e.message : 'Failed to post request'),
@@ -88,42 +119,54 @@ export default function PostRequestScreen() {
         {/* eslint-disable-next-line react-native/no-inline-styles */}
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
 
-          {/* Audience selector */}
-          <View className="mb-5">
-            <Text className="text-surface-300 text-sm mb-2">
-              Who can see this post? <Text className="text-red-400">*</Text>
-            </Text>
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                className={`flex-1 rounded-xl p-4 border-2 items-center ${
-                  audience === 'buyer' ? 'border-blue-500 bg-blue-500/10' : 'border-surface-200 bg-surface-100'
-                }`}
-                onPress={() => setAudience('buyer')}
-              >
-                <Text className="text-2xl mb-1">🛒</Text>
-                <Text className={`font-bold text-sm ${audience === 'buyer' ? 'text-blue-400' : 'text-surface-300'}`}>
-                  Buyers
+          {/* Audience selector or Linked Banner */}
+          {params.buyerOrderId ? (
+            <View className="mb-5 bg-green-500/10 border border-green-500/30 rounded-2xl p-4 flex-row items-center gap-3">
+              <Text className="text-3xl">🏪</Text>
+              <View className="flex-1">
+                <Text className="text-green-400 font-bold text-sm">Fulfilling Buyer Order</Text>
+                <Text className="text-surface-300 text-xs">
+                  This request is automatically linked to Buyer Order #{params.buyerOrderId.slice(-6).toUpperCase()}.
                 </Text>
-                <Text className="text-surface-400 text-xs text-center mt-1">
-                  Selling POP to buyers
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className={`flex-1 rounded-xl p-4 border-2 items-center ${
-                  audience === 'supplier' ? 'border-green-500 bg-green-500/10' : 'border-surface-200 bg-surface-100'
-                }`}
-                onPress={() => setAudience('supplier')}
-              >
-                <Text className="text-2xl mb-1">🏪</Text>
-                <Text className={`font-bold text-sm ${audience === 'supplier' ? 'text-green-400' : 'text-surface-300'}`}>
-                  Suppliers
-                </Text>
-                <Text className="text-surface-400 text-xs text-center mt-1">
-                  Sourcing POP from suppliers
-                </Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View className="mb-5">
+              <Text className="text-surface-300 text-sm mb-2">
+                Who can see this post? <Text className="text-red-400">*</Text>
+              </Text>
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  className={`flex-1 rounded-xl p-4 border-2 items-center ${
+                    audience === 'buyer' ? 'border-blue-500 bg-blue-500/10' : 'border-surface-200 bg-surface-100'
+                  }`}
+                  onPress={() => setAudience('buyer')}
+                >
+                  <Text className="text-2xl mb-1">🛒</Text>
+                  <Text className={`font-bold text-sm ${audience === 'buyer' ? 'text-blue-400' : 'text-surface-300'}`}>
+                    Buyers
+                  </Text>
+                  <Text className="text-surface-400 text-xs text-center mt-1">
+                    Selling POP to buyers
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 rounded-xl p-4 border-2 items-center ${
+                    audience === 'supplier' ? 'border-green-500 bg-green-500/10' : 'border-surface-200 bg-surface-100'
+                  }`}
+                  onPress={() => setAudience('supplier')}
+                >
+                  <Text className="text-2xl mb-1">🏪</Text>
+                  <Text className={`font-bold text-sm ${audience === 'supplier' ? 'text-green-400' : 'text-surface-300'}`}>
+                    Suppliers
+                  </Text>
+                  <Text className="text-surface-400 text-xs text-center mt-1">
+                    Sourcing POP from suppliers
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Supplier-only: destination PUBG ID + deadline */}
           {audience === 'supplier' && (

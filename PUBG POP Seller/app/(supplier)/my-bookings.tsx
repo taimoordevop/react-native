@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
   View,
@@ -9,6 +10,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Linking,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +21,8 @@ import {
   useSubmitBookingProof,
   useRequest,
 } from '@/features/requests/hooks/useRequests';
+import { profileService } from '@/features/profile/services/profileService';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 import type { Booking, BookingStatus } from '@/shared/types';
 
 type FilterKey = 'active' | 'completed' | 'all';
@@ -183,28 +188,138 @@ export default function SupplierMyBookingsScreen() {
   const [proofNotes, setProofNotes] = useState('');
   const [proofError, setProofError] = useState<string | null>(null);
 
+  // Hybrid Flow & Uploading states
+  const [selectedUri, setSelectedUri] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<'image' | 'video' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [sellerWhatsapp, setSellerWhatsapp] = useState<string>('');
+
   const filtered = bookings.filter((b) => {
     if (filter === 'active') return ['pending', 'accepted', 'in_progress', 'proof_submitted'].includes(b.status);
     if (filter === 'completed') return ['completed', 'rejected'].includes(b.status);
     return true;
   });
 
-  const handleSubmitProof = () => {
+  const handlePickFile = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos', 'images'],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setSelectedUri(asset.uri);
+        setSelectedType(asset.type === 'video' ? 'video' : 'image');
+        setProofError(null);
+      }
+    } catch (err) {
+      setProofError('Failed to access photo gallery.');
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
     if (!proofBooking) return;
-    if (!proofUrl.trim() || proofUrl.trim().length < 10) {
-      setProofError('Enter a valid proof URL (Google Drive, YouTube, etc.)');
+
+    const whatsappNum = sellerWhatsapp || '+923001234567';
+
+    const richMessage = `*PUBG POP BOOKING ESCROW PROOF*
+----------------------------------------
+*Booking ID:* ${proofBooking.id}
+*Request ID:* ${proofBooking.requestId}
+*Amount:* ${proofBooking.bookedAmount.toLocaleString()} POP
+*Target PUBG ID:* ${proofBooking.buyerPubgId ?? 'N/A'}
+*Supplier Name:* ${proofBooking.supplierName}
+*Method:* WhatsApp Fallback
+
+Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. Sending screen recording/screenshot proof here. Please confirm receipt and release escrow payout!`;
+
+    const cleanPhone = whatsappNum.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(richMessage)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        setUploading(true);
+        submitProof(
+          { id: proofBooking.id, proofUrl: 'whatsapp', proofNotes: 'Sent via WhatsApp Fallback' },
+          {
+            onSuccess: async () => {
+              setProofBooking(null);
+              setUploading(false);
+              await Linking.openURL(url);
+            },
+            onError: (e) => {
+              setProofError(e instanceof Error ? e.message : 'Failed to mark as sent');
+              setUploading(false);
+            },
+          },
+        );
+      } else {
+        Alert.alert(
+          'WhatsApp Required',
+          'WhatsApp is not installed on this device. Please install WhatsApp to use this fallback option.',
+        );
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to open WhatsApp.');
+    }
+  };
+
+  const handleSubmitProof = async () => {
+    if (!proofBooking) return;
+
+    let finalProofUrl = proofUrl.trim();
+
+    // Option A: Upload picked file to Cloudinary
+    if (selectedUri) {
+      try {
+        setUploading(true);
+        setProofError(null);
+        const folder = `proof-bookings/${proofBooking.id}`;
+        const cloudinaryResult = await uploadToCloudinary(
+          selectedUri,
+          folder,
+          selectedType === 'video' ? 'video' : 'image',
+          (progress) => setUploadProgress(progress),
+        );
+        finalProofUrl = cloudinaryResult.secure_url;
+      } catch (err) {
+        setProofError(err instanceof Error ? err.message : 'Failed to upload proof file.');
+        setUploading(false);
+        return;
+      }
+    }
+
+    if (!finalProofUrl) {
+      setProofError('Please upload a file, send via WhatsApp, or enter a valid proof link.');
+      setUploading(false);
       return;
     }
+
+    if (finalProofUrl.toLowerCase() !== 'whatsapp' && finalProofUrl.length < 10) {
+      setProofError('Enter a valid proof URL or select a file to upload.');
+      setUploading(false);
+      return;
+    }
+
     submitProof(
-      { id: proofBooking.id, proofUrl: proofUrl.trim(), proofNotes: proofNotes.trim() || null },
+      { id: proofBooking.id, proofUrl: finalProofUrl, proofNotes: proofNotes.trim() || null },
       {
         onSuccess: () => {
           setProofBooking(null);
           setProofUrl('');
+          setSelectedUri(null);
+          setSelectedType(null);
+          setUploadProgress(0);
+          setUploading(false);
           setProofNotes('');
           Alert.alert('Proof Submitted!', 'The seller will verify and mark your booking complete.');
         },
-        onError: (e) => setProofError(e instanceof Error ? e.message : 'Failed to submit'),
+        onError: (e) => {
+          setProofError(e instanceof Error ? e.message : 'Failed to submit proof');
+          setUploading(false);
+        },
       },
     );
   };
@@ -252,8 +367,17 @@ export default function SupplierMyBookingsScreen() {
             onSubmitProof={() => {
               setProofBooking(item);
               setProofUrl('');
+              setSelectedUri(null);
+              setSelectedType(null);
+              setUploadProgress(0);
               setProofNotes('');
               setProofError(null);
+              setSellerWhatsapp('');
+              profileService.getById(item.sellerId).then((profile) => {
+                if (profile?.whatsappNumber) {
+                  setSellerWhatsapp(profile.whatsappNumber);
+                }
+              }).catch(() => {});
             }}
           />}
         />
@@ -267,61 +391,137 @@ export default function SupplierMyBookingsScreen() {
         onRequestClose={() => setProofBooking(null)}
       >
         <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-surface rounded-t-3xl p-6">
+          <View className="bg-surface rounded-t-3xl p-6 max-h-[85%]">
             <Text className="text-white text-xl font-bold mb-1">Submit Proof</Text>
-            <Text className="text-surface-300 text-sm mb-5">
-              Paste a link to your screen recording (Google Drive, YouTube, etc.)
+            <Text className="text-surface-300 text-xs mb-5">
+              Choose your preferred method to submit delivery proof to the seller.
             </Text>
 
-            <View className="mb-4">
-              <Text className="text-surface-300 text-sm mb-2">Proof URL *</Text>
-              <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-sm"
-                value={proofUrl}
-                onChangeText={(v) => { setProofUrl(v); setProofError(null); }}
-                placeholder="https://drive.google.com/..."
-                placeholderTextColor="#475569"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+            <ScrollView className="mb-4" showsVerticalScrollIndicator={false}>
+              
+              {/* Option A: Upload Media */}
+              <View className="bg-surface-100 border border-primary-500/20 rounded-2xl p-4 mb-4">
+                <Text className="text-primary-400 font-bold text-sm mb-1">Option A: In-App Upload (Primary)</Text>
+                <Text className="text-surface-300 text-xs mb-3">
+                  Upload a screen recording or screenshot of the transaction directly.
+                </Text>
 
-            <View className="mb-5">
-              <Text className="text-surface-300 text-sm mb-2">Notes (optional)</Text>
-              <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-3 text-sm"
-                value={proofNotes}
-                onChangeText={setProofNotes}
-                placeholder="Any notes for the seller..."
-                placeholderTextColor="#475569"
-                multiline
-                numberOfLines={2}
-                // eslint-disable-next-line react-native/no-inline-styles
-                style={{ textAlignVertical: 'top' }}
-              />
-            </View>
-
-            {proofError && (
-              <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
-                <Text className="text-red-400 text-sm">{proofError}</Text>
+                {selectedUri ? (
+                  <View className="bg-surface-200 border border-green-500/30 rounded-xl p-3 flex-row items-center justify-between">
+                    <View className="flex-1 mr-2">
+                      <Text className="text-green-400 text-xs font-semibold mb-0.5">✓ Ready to Upload</Text>
+                      <Text className="text-white text-xs" numberOfLines={1}>
+                        {selectedUri.split('/').pop()}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      className="bg-surface-100 rounded-lg px-3 py-2 border border-surface-300"
+                      onPress={() => {
+                        setSelectedUri(null);
+                        setSelectedType(null);
+                      }}
+                    >
+                      <Text className="text-surface-300 text-xs font-bold">Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    className="bg-primary-500/10 border border-primary-500/40 rounded-xl py-3 items-center"
+                    onPress={handlePickFile}
+                  >
+                    <Text className="text-primary-400 font-bold text-sm">📁 Select Video / Image from Gallery</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
+
+              {/* Option B: WhatsApp Fallback */}
+              <View className="bg-surface-100 border border-green-500/20 rounded-2xl p-4 mb-4">
+                <Text className="text-green-400 font-bold text-sm mb-1">Option B: Send via WhatsApp (Fallback)</Text>
+                <Text className="text-surface-300 text-xs mb-3">
+                  Open WhatsApp with a pre-filled transaction template and send proof directly to the seller.
+                </Text>
+
+                <TouchableOpacity
+                  className="bg-green-500/10 border border-green-500/40 rounded-xl py-3 items-center flex-row justify-center gap-2"
+                  onPress={handleSendWhatsApp}
+                >
+                  <Text className="text-green-400 text-sm">💬</Text>
+                  <Text className="text-green-400 font-bold text-sm">Open WhatsApp &amp; Send</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Option C: Paste URL */}
+              {!selectedUri && (
+                <View className="bg-surface-100 border border-surface-200 rounded-2xl p-4 mb-4">
+                  <Text className="text-white font-bold text-sm mb-1">Option C: Paste External Link</Text>
+                  <Text className="text-surface-300 text-xs mb-3">
+                    Paste a link to your screen recording (Google Drive, YouTube, etc.)
+                  </Text>
+                  <TextInput
+                    className="bg-surface-200 text-white rounded-xl px-4 py-3 text-xs border border-surface-300"
+                    value={proofUrl}
+                    onChangeText={(v) => { setProofUrl(v); setProofError(null); }}
+                    placeholder="https://drive.google.com/..."
+                    placeholderTextColor="#475569"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
+
+              {/* Notes */}
+              <View className="mb-4">
+                <Text className="text-surface-300 text-xs mb-1.5">Notes (optional)</Text>
+                <TextInput
+                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-xs"
+                  value={proofNotes}
+                  onChangeText={setProofNotes}
+                  placeholder="Any notes or remarks for the seller..."
+                  placeholderTextColor="#475569"
+                  multiline
+                  numberOfLines={2}
+                  style={{ textAlignVertical: 'top' }}
+                />
+              </View>
+
+              {/* Upload Progress */}
+              {uploading && (
+                <View className="bg-surface-100 rounded-2xl p-4 mb-4 border border-surface-200">
+                  <View className="flex-row justify-between mb-2">
+                    <Text className="text-white text-xs font-semibold">Uploading proof media...</Text>
+                    <Text className="text-primary-400 text-xs font-bold">{uploadProgress}%</Text>
+                  </View>
+                  <View className="bg-surface-200 h-2 rounded-full overflow-hidden">
+                    <View
+                      className="bg-primary-500 h-full rounded-full"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {proofError && (
+                <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
+                  <Text className="text-red-400 text-xs">{proofError}</Text>
+                </View>
+              )}
+            </ScrollView>
 
             <View className="flex-row gap-3">
               <TouchableOpacity
                 className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
                 onPress={() => setProofBooking(null)}
-                disabled={submitting}
+                disabled={uploading || submitting}
               >
                 <Text className="text-white font-semibold">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`flex-1 rounded-xl py-4 items-center ${submitting ? 'bg-surface-200' : 'bg-green-600'}`}
+                className={`flex-1 rounded-xl py-4 items-center ${(uploading || submitting) ? 'bg-surface-200' : 'bg-green-600'}`}
                 onPress={handleSubmitProof}
-                disabled={submitting}
+                disabled={uploading || submitting}
               >
                 <Text className="text-white font-bold">
-                  {submitting ? 'Submitting…' : 'Submit Proof'}
+                  {uploading ? 'Uploading…' : submitting ? 'Submitting…' : 'Submit Proof'}
                 </Text>
               </TouchableOpacity>
             </View>

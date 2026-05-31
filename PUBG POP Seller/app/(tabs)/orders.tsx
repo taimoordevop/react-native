@@ -25,19 +25,20 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'disputed', label: 'Disputed' },
 ];
 
-const ACTIVE_STATUSES: OrderStatus[] = ['pending_payment', 'paid', 'in_progress', 'proof_submitted', 'verified'];
+const ACTIVE_STATUSES: OrderStatus[] = ['pending_payment', 'paid', 'in_progress', 'proof_submitted', 'verified', 'payout_submitted'];
 const DONE_STATUSES: OrderStatus[] = ['completed'];
 const DISPUTED_STATUSES: OrderStatus[] = ['disputed', 'cancelled'];
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
-  pending_payment: { label: 'Awaiting Payment', color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
-  paid:            { label: 'Paid — Awaiting Start', color: 'text-blue-400', bg: 'bg-blue-500/20' },
-  in_progress:     { label: 'In Progress', color: 'text-primary-400', bg: 'bg-primary-500/20' },
-  proof_submitted: { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/20' },
-  verified:        { label: 'Verified', color: 'text-green-400', bg: 'bg-green-500/20' },
-  completed:       { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/20' },
-  disputed:        { label: 'Disputed', color: 'text-red-400', bg: 'bg-red-500/20' },
-  cancelled:       { label: 'Cancelled', color: 'text-surface-300', bg: 'bg-surface-200' },
+  pending_payment:  { label: 'Awaiting Payment', color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+  paid:             { label: 'Paid — Awaiting Start', color: 'text-blue-400', bg: 'bg-blue-500/20' },
+  in_progress:      { label: 'In Progress', color: 'text-primary-400', bg: 'bg-primary-500/20' },
+  proof_submitted:  { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/20' },
+  verified:         { label: 'Verified', color: 'text-green-400', bg: 'bg-green-500/20' },
+  payout_submitted: { label: 'Payout Proof Uploaded', color: 'text-indigo-400', bg: 'bg-indigo-500/20' },
+  completed:        { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/20' },
+  disputed:         { label: 'Disputed', color: 'text-red-400', bg: 'bg-red-500/20' },
+  cancelled:        { label: 'Cancelled', color: 'text-surface-300', bg: 'bg-surface-200' },
 };
 
 function OrderCard({

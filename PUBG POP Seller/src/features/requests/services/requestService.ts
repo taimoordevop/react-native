@@ -11,6 +11,8 @@ import {
   onSnapshot,
   serverTimestamp,
   increment,
+  Timestamp,
+  arrayUnion,
 } from 'firebase/firestore';
 
 import { COLLECTION } from '@/constants';
@@ -30,6 +32,8 @@ export const requestService = {
     notes: string | null;
     destinationPubgId: string | null;
     deliveryDeadline: string | null;
+    buyerOrderId?: string | null;
+    buyerPubgId?: string | null;
   }): Promise<string> {
     const ref = await addDoc(collection(db, COLLECTION.REQUESTS), {
       ...data,
@@ -176,6 +180,44 @@ export const bookingService = {
       ...(status === 'completed' ? { completedAt: serverTimestamp() } : {}),
       ...(extra ?? {}),
     });
+
+    // Auto-propagate verified proof videos to the linked Buyer Order when booking is completed!
+    if (status === 'completed') {
+      try {
+        const bookingSnap = await getDoc(doc(db, COLLECTION.BOOKINGS, id));
+        if (bookingSnap.exists()) {
+          const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
+          const requestSnap = await getDoc(doc(db, COLLECTION.REQUESTS, booking.requestId));
+          if (requestSnap.exists()) {
+            const request = requestSnap.data();
+            const buyerOrderId = request.buyerOrderId;
+            if (buyerOrderId) {
+              const proofUrl = booking.proofUrl || 'whatsapp';
+              const videoEntry = {
+                url: proofUrl,
+                diamondsSent: booking.bookedAmount,
+                type: (proofUrl.includes('drive.google.com') || proofUrl === 'whatsapp') ? 'screenshot' as const : 'video' as const,
+                uploadedAt: Timestamp.now(),
+                notes: booking.proofNotes || `POP proof submitted by supplier ${booking.supplierName}`,
+              };
+
+              await updateDoc(doc(db, COLLECTION.ORDERS, buyerOrderId), {
+                status: 'verified',
+                proofVideos: arrayUnion(videoEntry),
+                verifiedProofVideos: arrayUnion(videoEntry),
+                proofStatus: 'verified',
+                proofMethod: proofUrl === 'whatsapp' ? 'whatsapp' : 'uploaded',
+                popSupplierId: booking.supplierId,
+                popSupplierName: booking.supplierName,
+                updatedAt: serverTimestamp(),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to propagate verified proof to buyer order:', err);
+      }
+    }
   },
 
   /** Supplier submits proof for a booking */

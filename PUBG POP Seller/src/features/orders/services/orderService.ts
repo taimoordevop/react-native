@@ -33,14 +33,15 @@ async function getTransactionService() {
 
 /** Valid status transitions — prevents illegal state changes */
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending_payment: ['paid', 'in_progress', 'cancelled'],
-  paid:            ['in_progress', 'cancelled', 'disputed'],
-  in_progress:     ['proof_submitted', 'disputed'],
-  proof_submitted: ['verified', 'disputed'],
-  verified:        ['completed'],
-  completed:       [],
-  disputed:        ['completed', 'cancelled'],
-  cancelled:       [],
+  pending_payment:  ['paid', 'in_progress', 'cancelled'],
+  paid:             ['in_progress', 'cancelled', 'disputed'],
+  in_progress:      ['proof_submitted', 'disputed'],
+  proof_submitted:  ['verified', 'disputed'],
+  verified:         ['payout_submitted', 'completed'],
+  payout_submitted: ['completed'],
+  completed:        [],
+  disputed:         ['completed', 'cancelled'],
+  cancelled:        [],
 };
 
 export function calcCommission(popAmount: number): number {
@@ -269,11 +270,19 @@ export const orderService = {
     await this.updateStatus(orderId, 'in_progress');
   },
 
-  /** Seller uploads payout proof to supplier + transitions verified → completed.
-   *  Also auto-creates a profit transaction record for analytics. */
+  /** Seller uploads payout proof to supplier + transitions verified → payout_submitted. */
   async submitSellerPayoutProof(orderId: string, imageUrls: string[]): Promise<void> {
     await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
       supplierPayoutProof: arrayUnion(...imageUrls),
+      status: 'payout_submitted',
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  /** Supplier verifies receipt of payment — marks order as completed and releases money.
+   *  Also auto-creates a profit transaction record for analytics. */
+  async supplierConfirmPayout(orderId: string): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
       status: 'completed',
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -299,9 +308,24 @@ export const orderService = {
     }
   },
 
+  async verifyAndShareProof(orderId: string, verifiedUrls?: string[]): Promise<void> {
+    const order = await this.getById(orderId);
+    if (!order) throw new Error('Order not found');
+
+    const urlsToVerify = verifiedUrls || order.proofVideos.map((v) => v.url);
+    const verified = order.proofVideos.filter((v) => urlsToVerify.includes(v.url));
+
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+      status: 'verified',
+      verifiedProofVideos: verified,
+      proofStatus: 'verified',
+      updatedAt: serverTimestamp(),
+    });
+  },
+
   /** Verify proof and release escrow — marks order as verified → completed */
   async verifyAndComplete(orderId: string): Promise<void> {
-    await this.updateStatus(orderId, 'verified');
+    await this.verifyAndShareProof(orderId);
   },
 
   async getById(id: string): Promise<Order | null> {

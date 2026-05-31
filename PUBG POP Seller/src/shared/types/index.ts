@@ -87,6 +87,7 @@ export type OrderStatus =
   | 'in_progress'
   | 'proof_submitted'
   | 'verified'
+  | 'payout_submitted'
   | 'completed'
   | 'disputed'
   | 'cancelled';
@@ -120,6 +121,8 @@ export interface Order extends BaseDocument {
   commission: number;
   status: OrderStatus;
   proofVideos: OrderProofVideo[];
+  verifiedProofVideos?: OrderProofVideo[];
+  proofStatus?: 'pending' | 'submitted' | 'verified';
   notes: string | null;
   /** Screenshot URLs uploaded by buyer as payment proof */
   buyerPaymentProof: string[];
@@ -128,6 +131,8 @@ export interface Order extends BaseDocument {
   completedAt: FirestoreTimestamp | null;
   expiresAt: FirestoreTimestamp | null;
   proofMethod?: 'uploaded' | 'whatsapp';
+  popSupplierId?: string | null;
+  popSupplierName?: string | null;
 }
 
 export interface Proof extends BaseDocument {
@@ -189,6 +194,8 @@ export interface SellerRequest extends BaseDocument {
   /** Deadline by which supplier should send POP, e.g. 'within 2 hours' */
   deliveryDeadline: string | null;
   completedAt: FirestoreTimestamp | null;
+  buyerOrderId?: string | null;
+  buyerPubgId?: string | null;
 }
 
 /** Status of a supplier's booking against a SellerRequest */

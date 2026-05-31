@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,9 @@ import {
   TextInput,
   Image,
   ScrollView,
+  Linking,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -41,6 +43,38 @@ const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bg: s
   proof_submitted: { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
   completed:       { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
 };
+
+function VideoPlayerWrapper({ proofUrl }: { proofUrl: string }) {
+  const videoRef = useRef<Video>(null);
+  const [playing, setPlaying] = useState(false);
+
+  return (
+    <View className="bg-black rounded-xl overflow-hidden mb-2 relative aspect-video border border-purple-500/20">
+      <Video
+        ref={videoRef}
+        source={{ uri: proofUrl }}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode={ResizeMode.CONTAIN}
+        useNativeControls
+        shouldPlay={playing}
+        isLooping={false}
+        onPlaybackStatusUpdate={(s) => {
+          if ('didJustFinish' in s && s.didJustFinish) setPlaying(false);
+        }}
+      />
+      {!playing && (
+        <TouchableOpacity
+          onPress={() => setPlaying(true)}
+          className="absolute inset-0 items-center justify-center bg-black/35"
+        >
+          <View className="bg-black/60 rounded-full w-14 h-14 items-center justify-center">
+            <Text className="text-white text-xl">▶</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 export default function SellerBookingsScreen() {
   const { user } = useAuthStore();
@@ -221,26 +255,38 @@ export default function SellerBookingsScreen() {
             {/* Proof Submissions */}
             {item.status === 'proof_submitted' && item.proofUrl && (
               <View className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 mb-4">
-                <Text className="text-purple-400 text-xs font-semibold mb-2">Supplier POP Proof:</Text>
-                {item.proofUrl.startsWith('http') && (
-                  <TouchableOpacity
-                    onPress={() => setViewerImage(item.proofUrl)}
-                    activeOpacity={0.9}
-                    className="mb-2 relative rounded-lg overflow-hidden bg-black aspect-video items-center justify-center border border-purple-500/20"
-                  >
-                    <Image
-                      source={{ uri: item.proofUrl }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                    <View className="absolute bg-black/60 px-3 py-1.5 rounded-full">
-                      <Text className="text-white text-xs font-bold">🔍 Tap to Zoom Image</Text>
+                <Text className="text-purple-400 text-xs font-bold mb-2">Supplier POP Proof:</Text>
+
+                {item.proofUrl === 'whatsapp' ? (
+                  <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2 flex-row items-center gap-2">
+                    <Text className="text-xl">💬</Text>
+                    <View className="flex-1">
+                      <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
+                      <Text className="text-surface-400 text-[10px]">
+                        Supplier has sent the video proof directly to your WhatsApp.
+                      </Text>
                     </View>
-                  </TouchableOpacity>
+                  </View>
+                ) : item.proofUrl.includes('drive.google.com') ? (
+                  <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-2">
+                    <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
+                    <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
+                      {item.proofUrl}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(item.proofUrl!)}
+                      className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
+                    >
+                      <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  // Render Cloudinary Video Proof player
+                  <VideoPlayerWrapper proofUrl={item.proofUrl} />
                 )}
 
                 {item.proofNotes && (
-                  <Text className="text-surface-300 text-xs leading-relaxed bg-surface-100 p-2 rounded-lg border border-surface-200/30">
+                  <Text className="text-surface-300 text-xs leading-relaxed bg-surface-100 p-2.5 rounded-lg border border-surface-200/30">
                     <Text className="font-semibold text-purple-400">Notes: </Text>
                     {item.proofNotes}
                   </Text>

@@ -181,3 +181,14 @@ export function useMarkProofReceivedViaWhatsApp() {
     },
   });
 }
+
+/** Supplier verifies receipt of payment — marks order as completed and releases money */
+export function useSupplierConfirmPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => orderService.supplierConfirmPayout(orderId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+    },
+  });
+}

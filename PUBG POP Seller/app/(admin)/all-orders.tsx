@@ -24,17 +24,18 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 const STATUS_COLOR: Record<OrderStatus, string> = {
-  pending_payment: 'text-yellow-400',
-  paid:            'text-blue-400',
-  in_progress:     'text-primary-400',
-  proof_submitted: 'text-purple-400',
-  verified:        'text-green-400',
-  completed:       'text-green-400',
-  disputed:        'text-red-400',
-  cancelled:       'text-surface-300',
+  pending_payment:  'text-yellow-400',
+  paid:             'text-blue-400',
+  in_progress:      'text-primary-400',
+  proof_submitted:  'text-purple-400',
+  verified:         'text-green-400',
+  payout_submitted: 'text-indigo-400',
+  completed:        'text-green-400',
+  disputed:         'text-red-400',
+  cancelled:        'text-surface-300',
 };
 
-const ACTIVE: OrderStatus[] = ['pending_payment', 'paid', 'in_progress', 'proof_submitted', 'verified'];
+const ACTIVE: OrderStatus[] = ['pending_payment', 'paid', 'in_progress', 'proof_submitted', 'verified', 'payout_submitted'];
 
 export default function AdminAllOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);

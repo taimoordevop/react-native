@@ -21,7 +21,8 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.74;
 const SELLER_MENU = [
   { label: 'Dashboard',         icon: '⊞', href: '/(seller)/dashboard' },
   { label: 'Post Request',      icon: '＋', href: '/(seller)/post-request' },
-  { label: 'My Requests',       icon: '📋', href: '/(seller)/my-requests' },
+  { label: 'Buyer Requests',    icon: '🛒', href: '/(seller)/buyer-requests' },
+  { label: 'Supplier Requests', icon: '🏪', href: '/(seller)/supplier-requests' },
   { label: 'Supplier Bookings', icon: '⚡', href: '/(seller)/bookings' },
   { label: 'Buyer Orders',      icon: '🛒', href: '/(seller)/orders' },
   { label: 'Analytics',         icon: '📊', href: '/(seller)/analytics' },
@@ -129,6 +130,8 @@ export default function SellerDashboard() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const openRequests  = requests.filter((r) => ['open', 'partially_booked'].includes(r.status));
+  const openBuyerRequests = requests.filter((r) => r.targetAudience === 'buyer' && ['open', 'partially_booked'].includes(r.status));
+  const openSupplierRequests = requests.filter((r) => r.targetAudience === 'supplier' && ['open', 'partially_booked'].includes(r.status));
   const activeRequests = requests.filter((r) => ['fully_booked', 'in_progress'].includes(r.status));
   const completedRequests = requests.filter((r) => r.status === 'completed');
 
@@ -208,12 +211,25 @@ export default function SellerDashboard() {
 
           <TouchableOpacity
             className="bg-surface-200 rounded-xl py-4 px-4 mb-3 flex-row items-center"
-            onPress={() => router.push('/(seller)/my-requests' as never)}
+            onPress={() => router.push('/(seller)/buyer-requests' as never)}
           >
-            <Text className="text-white font-medium flex-1">Manage Requests & Bookings</Text>
-            {openRequests.length > 0 && (
-              <View className="bg-yellow-500 rounded-full w-6 h-6 items-center justify-center mr-2">
-                <Text className="text-white text-xs font-bold">{openRequests.length}</Text>
+            <Text className="text-white font-medium flex-1">Manage Buyer Requests</Text>
+            {openBuyerRequests.length > 0 && (
+              <View className="bg-blue-500/20 px-2 py-0.5 rounded-full mr-2 border border-blue-500/30">
+                <Text className="text-blue-400 text-xs font-bold">{openBuyerRequests.length}</Text>
+              </View>
+            )}
+            <Text className="text-surface-300">›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-surface-200 rounded-xl py-4 px-4 mb-3 flex-row items-center"
+            onPress={() => router.push('/(seller)/supplier-requests' as never)}
+          >
+            <Text className="text-white font-medium flex-1">Manage Supplier Requests</Text>
+            {openSupplierRequests.length > 0 && (
+              <View className="bg-yellow-500/20 px-2 py-0.5 rounded-full mr-2 border border-yellow-500/30">
+                <Text className="text-yellow-400 text-xs font-bold">{openSupplierRequests.length}</Text>
               </View>
             )}
             <Text className="text-surface-300">›</Text>
@@ -261,9 +277,15 @@ export default function SellerDashboard() {
         <View className="bg-surface-100 rounded-2xl p-4">
           <View className="flex-row justify-between items-center mb-3">
             <Text className="text-white font-semibold">Recent Requests</Text>
-            <TouchableOpacity onPress={() => router.push('/(seller)/my-requests' as never)}>
-              <Text className="text-yellow-400 text-sm">View All</Text>
-            </TouchableOpacity>
+            <View className="flex-row gap-2 items-center">
+              <TouchableOpacity onPress={() => router.push('/(seller)/buyer-requests' as never)}>
+                <Text className="text-blue-400 text-xs font-bold">Buyer</Text>
+              </TouchableOpacity>
+              <Text className="text-surface-400 text-xs">|</Text>
+              <TouchableOpacity onPress={() => router.push('/(seller)/supplier-requests' as never)}>
+                <Text className="text-yellow-400 text-xs font-bold">Supplier</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {requests.slice(0, 4).length === 0 ? (
@@ -275,7 +297,13 @@ export default function SellerDashboard() {
               <TouchableOpacity
                 key={r.id}
                 className="flex-row justify-between items-center py-3 border-b border-surface-200"
-                onPress={() => router.push('/(seller)/my-requests' as never)}
+                onPress={() =>
+                  router.push(
+                    r.targetAudience === 'buyer'
+                      ? '/(seller)/buyer-requests'
+                      : '/(seller)/supplier-requests' as never
+                  )
+                }
               >
                 <View>
                   <Text className="text-white text-sm font-semibold">

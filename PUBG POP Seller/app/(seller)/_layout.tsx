@@ -18,7 +18,8 @@ export default function SellerLayout() {
     >
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="post-request" options={{ animation: 'slide_from_bottom' }} />
-      <Stack.Screen name="my-requests" />
+      <Stack.Screen name="buyer-requests" />
+      <Stack.Screen name="supplier-requests" />
       <Stack.Screen name="bookings" />
       <Stack.Screen name="orders" />
       <Stack.Screen name="profile" />
