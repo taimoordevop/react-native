@@ -192,3 +192,29 @@ export function useSupplierConfirmPayout() {
     },
   });
 }
+
+/** Seller uploads payment proof for direct requests */
+export function useSubmitSellerPaymentProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, imageUrls }: { orderId: string; imageUrls: string[] }) =>
+      orderService.submitSellerPaymentProof(orderId, imageUrls),
+    onSuccess: (_data, { orderId }) => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDER, orderId] });
+    },
+  });
+}
+
+/** Supplier confirms Seller payment received for direct requests */
+export function useConfirmSellerPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => orderService.confirmSellerPayment(orderId),
+    onSuccess: (_data, orderId) => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDERS] });
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.ORDER, orderId] });
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+}

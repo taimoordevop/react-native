@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -78,6 +78,17 @@ export default function ProfileScreen() {
   const [accountTitle, setAccountTitle] = useState('');
   // Show type picker dropdown
   const [typePickerOpen, setTypePickerOpen] = useState(false);
+
+  // Default Commission Settings
+  const [commissionInput, setCommissionInput] = useState(String(user?.defaultCommissionPer10k ?? 40));
+  const [savingCommission, setSavingCommission] = useState(false);
+  const [commissionError, setCommissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.defaultCommissionPer10k !== undefined) {
+      setCommissionInput(String(user.defaultCommissionPer10k));
+    }
+  }, [user?.defaultCommissionPer10k]);
 
   const role = user?.role ?? 'buyer';
   const badge = ROLE_BADGE[role];
@@ -163,6 +174,31 @@ export default function ProfileScreen() {
       setEditError(err instanceof Error ? err.message : 'Failed to update. Please try again.');
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleSaveCommission = async () => {
+    const val = Number(commissionInput);
+    if (isNaN(val) || val < 0) {
+      setCommissionError('Commission must be a valid positive number');
+      return;
+    }
+    if (!user) return;
+    try {
+      setSavingCommission(true);
+      setCommissionError(null);
+      await profileService.update(user.uid, {
+        defaultCommissionPer10k: val,
+      });
+      setUser({
+        ...user,
+        defaultCommissionPer10k: val,
+      });
+      Alert.alert('Success', 'Default commission updated successfully!');
+    } catch (err) {
+      setCommissionError(err instanceof Error ? err.message : 'Failed to update commission');
+    } finally {
+      setSavingCommission(false);
     }
   };
 
@@ -396,6 +432,45 @@ export default function ProfileScreen() {
                 </View>
               ))
             )}
+          </View>
+        )}
+
+        {/* ── Default Commission Settings (seller only) ── */}
+        {role === 'seller' && (
+          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+            <Text className="text-white font-semibold mb-2">Default Commission</Text>
+            <Text className="text-surface-300 text-xs mb-3 leading-relaxed">
+              Set your default profit margin commission per 10k POP. This will automatically deduct from the Buyer Rate when creating a Supplier Request.
+            </Text>
+            <View className="flex-row items-center gap-3">
+              <View className="flex-1">
+                <TextInput
+                  className="bg-surface-200 text-white rounded-xl px-4 py-3 text-base"
+                  value={commissionInput}
+                  onChangeText={(val) => {
+                    const clean = val.replace(/[^0-9]/g, '');
+                    setCommissionInput(clean);
+                  }}
+                  placeholder="e.g. 40"
+                  placeholderTextColor="#475569"
+                  keyboardType="numeric"
+                />
+              </View>
+              <TouchableOpacity
+                onPress={handleSaveCommission}
+                className="bg-yellow-500 rounded-xl px-5 py-3.5"
+                disabled={savingCommission}
+              >
+                {savingCommission ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text className="text-slate-950 font-bold text-sm">Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            {commissionError ? (
+              <Text className="text-red-400 text-xs mt-1.5">{commissionError}</Text>
+            ) : null}
           </View>
         )}
 

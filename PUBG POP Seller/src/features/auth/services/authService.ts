@@ -40,6 +40,7 @@ export const authService = {
       isBanned: false,
       onboardingCompleted: false, // triggers onboarding flow after auth
       fcmToken: null,
+      defaultCommissionPer10k: 40,
       createdAt: serverTimestamp() as UserProfile['createdAt'],
       updatedAt: serverTimestamp() as UserProfile['updatedAt'],
     };

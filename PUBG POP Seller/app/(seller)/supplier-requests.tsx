@@ -41,6 +41,8 @@ const BOOKING_STATUS_COLOR: Record<BookingStatus, { text: string; bg: string }> 
   rejected:        { text: 'text-red-400',    bg: 'bg-red-500/20' },
   in_progress:     { text: 'text-primary-400', bg: 'bg-primary-500/20' },
   proof_submitted: { text: 'text-purple-400', bg: 'bg-purple-500/20' },
+  verified:        { text: 'text-green-400',  bg: 'bg-green-500/20' },
+  payout_submitted:{ text: 'text-indigo-400', bg: 'bg-indigo-500/20' },
   completed:       { text: 'text-green-400',  bg: 'bg-green-500/20' },
 };
 
@@ -250,9 +252,23 @@ function RequestCard({
             <Text className="text-white font-bold text-lg">
               {request.totalPopAmount.toLocaleString()} POP
             </Text>
-            <Text className="text-surface-300 text-xs">
-              Rate: PKR {request.ratePer10k}/10k
-            </Text>
+            {request.buyerOrderId && request.buyerRatePer10k !== undefined && request.buyerRatePer10k !== null ? (
+              <View className="mt-1">
+                <Text className="text-surface-400 text-[11px] leading-tight">
+                  Buyer Rate: PKR {request.buyerRatePer10k}/10k
+                </Text>
+                <Text className="text-green-400 text-[11px] font-semibold leading-tight">
+                  Supplier Rate: PKR {request.ratePer10k}/10k
+                </Text>
+                <Text className="text-yellow-400 text-[11px] font-bold leading-tight">
+                  Your Profit Margin: PKR {(request.buyerRatePer10k - request.ratePer10k)}/10k
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-surface-300 text-xs">
+                Rate: PKR {request.ratePer10k}/10k
+              </Text>
+            )}
           </View>
           <View className="items-end gap-1">
             <Text className={`text-xs font-semibold capitalize ${STATUS_COLOR[request.status]}`}>

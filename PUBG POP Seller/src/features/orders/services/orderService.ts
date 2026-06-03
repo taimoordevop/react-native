@@ -36,7 +36,7 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending_payment:  ['paid', 'in_progress', 'cancelled'],
   paid:             ['in_progress', 'cancelled', 'disputed'],
   in_progress:      ['proof_submitted', 'disputed'],
-  proof_submitted:  ['verified', 'disputed'],
+  proof_submitted:  ['verified', 'completed', 'disputed'],
   verified:         ['payout_submitted', 'completed'],
   payout_submitted: ['completed'],
   completed:        [],
@@ -270,6 +270,40 @@ export const orderService = {
     await this.updateStatus(orderId, 'in_progress');
   },
 
+  /** Seller appends payment screenshot URLs to a Direct Request order */
+  async submitSellerPaymentProof(orderId: string, imageUrls: string[]): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+      sellerPaymentProof: arrayUnion(...imageUrls),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  /** Supplier confirms that Seller payment was received for direct request — pending_payment → in_progress */
+  async confirmSellerPayment(orderId: string): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+      status: 'in_progress',
+      supplierPaymentConfirmed: true,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Also update linked Booking status to in_progress so both are in sync
+    try {
+      const bookingsQuery = query(
+        collection(db, COLLECTION.BOOKINGS),
+        where('orderId', '==', orderId)
+      );
+      const bookingsSnap = await getDocs(bookingsQuery);
+      for (const bookingDoc of bookingsSnap.docs) {
+        await updateDoc(doc(db, COLLECTION.BOOKINGS, bookingDoc.id), {
+          status: 'in_progress',
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to update booking status on seller payment confirmation:', err);
+    }
+  },
+
   /** Seller uploads payout proof to supplier + transitions verified → payout_submitted. */
   async submitSellerPayoutProof(orderId: string, imageUrls: string[]): Promise<void> {
     await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
@@ -277,6 +311,35 @@ export const orderService = {
       status: 'payout_submitted',
       updatedAt: serverTimestamp(),
     });
+
+    // Propagate payout screenshot and status update to any linked Booking
+    try {
+      const requestsQuery = query(
+        collection(db, COLLECTION.REQUESTS),
+        where('buyerOrderId', '==', orderId)
+      );
+      const requestsSnap = await getDocs(requestsQuery);
+      if (!requestsSnap.empty) {
+        for (const reqDoc of requestsSnap.docs) {
+          const requestId = reqDoc.id;
+          const bookingsQuery = query(
+            collection(db, COLLECTION.BOOKINGS),
+            where('requestId', '==', requestId),
+            where('status', '==', 'verified')
+          );
+          const bookingsSnap = await getDocs(bookingsQuery);
+          for (const bookingDoc of bookingsSnap.docs) {
+            await updateDoc(doc(db, COLLECTION.BOOKINGS, bookingDoc.id), {
+              status: 'payout_submitted',
+              supplierPayoutProof: arrayUnion(...imageUrls),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update booking status on payout submission:', err);
+    }
   },
 
   /** Supplier verifies receipt of payment — marks order as completed and releases money.
@@ -287,6 +350,35 @@ export const orderService = {
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    // Propagate status update to any linked Booking to complete it as well
+    try {
+      const requestsQuery = query(
+        collection(db, COLLECTION.REQUESTS),
+        where('buyerOrderId', '==', orderId)
+      );
+      const requestsSnap = await getDocs(requestsQuery);
+      if (!requestsSnap.empty) {
+        for (const reqDoc of requestsSnap.docs) {
+          const requestId = reqDoc.id;
+          const bookingsQuery = query(
+            collection(db, COLLECTION.BOOKINGS),
+            where('requestId', '==', requestId),
+            where('status', '==', 'payout_submitted')
+          );
+          const bookingsSnap = await getDocs(bookingsQuery);
+          for (const bookingDoc of bookingsSnap.docs) {
+            await updateDoc(doc(db, COLLECTION.BOOKINGS, bookingDoc.id), {
+              status: 'completed',
+              completedAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update booking status on supplier payout confirmation:', err);
+    }
 
     // Fire-and-forget: create profit transaction (non-blocking, won't fail the upload)
     try {
@@ -325,7 +417,39 @@ export const orderService = {
 
   /** Verify proof and release escrow — marks order as verified → completed */
   async verifyAndComplete(orderId: string): Promise<void> {
-    await this.verifyAndShareProof(orderId);
+    const order = await this.getById(orderId);
+    if (!order) throw new Error('Order not found');
+
+    if (order.isDirectRequest) {
+      const verified = order.proofVideos;
+      await updateDoc(doc(db, COLLECTION.ORDERS, orderId), {
+        status: 'completed',
+        verifiedProofVideos: verified,
+        proofStatus: 'verified',
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Also update linked Booking status to completed in sync
+      try {
+        const bookingsQuery = query(
+          collection(db, COLLECTION.BOOKINGS),
+          where('orderId', '==', orderId)
+        );
+        const bookingsSnap = await getDocs(bookingsQuery);
+        for (const bookingDoc of bookingsSnap.docs) {
+          await updateDoc(doc(db, COLLECTION.BOOKINGS, bookingDoc.id), {
+            status: 'completed',
+            completedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to update booking status on direct order verification completion:', err);
+      }
+    } else {
+      await this.verifyAndShareProof(orderId);
+    }
   },
 
   async getById(id: string): Promise<Order | null> {

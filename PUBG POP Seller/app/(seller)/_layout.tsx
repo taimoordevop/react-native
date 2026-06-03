@@ -25,6 +25,7 @@ export default function SellerLayout() {
       <Stack.Screen name="profile" />
       <Stack.Screen name="analytics" />
       <Stack.Screen name="log-deal" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="log-manual-deal" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }

@@ -14,6 +14,7 @@ import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { useAnalytics } from '@/features/analytics/hooks/useAnalytics';
 import { useSellerRequests } from '@/features/requests/hooks/useRequests';
+import { useMyOrders } from '@/features/orders/hooks/useOrders';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.74;
@@ -126,16 +127,18 @@ function SellerDrawer({
 export default function SellerDashboard() {
   const { user } = useAuthStore();
   const { requests } = useSellerRequests(user?.uid);
+  const { orders } = useMyOrders(user?.uid, 'supplier');
   const { data: analytics } = useAnalytics(user?.uid);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const openRequests  = requests.filter((r) => ['open', 'partially_booked'].includes(r.status));
   const openBuyerRequests = requests.filter((r) => r.targetAudience === 'buyer' && ['open', 'partially_booked'].includes(r.status));
   const openSupplierRequests = requests.filter((r) => r.targetAudience === 'supplier' && ['open', 'partially_booked'].includes(r.status));
-  const activeRequests = requests.filter((r) => ['fully_booked', 'in_progress'].includes(r.status));
-  const completedRequests = requests.filter((r) => r.status === 'completed');
-
-  const totalPopManaged = completedRequests.reduce((s, r) => s + r.totalPopAmount, 0);
+  
+  // Calculate active and completed count directly from actual Buyer Orders
+  const activeOrders = orders.filter((o) => ['paid', 'in_progress', 'proof_submitted', 'verified', 'payout_submitted'].includes(o.status));
+  const completedOrders = orders.filter((o) => o.status === 'completed');
+  const totalPopManaged = completedOrders.reduce((s, o) => s + o.popAmount, 0);
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -160,24 +163,22 @@ export default function SellerDashboard() {
       {/* eslint-disable-next-line react-native/no-inline-styles */}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
 
-        {/* Today’s profit banner */}
-        {(analytics?.today.totalProfit ?? 0) > 0 && (
-          <TouchableOpacity
-            className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-4 flex-row items-center"
-            onPress={() => router.push('/(seller)/analytics' as never)}
-          >
-            <View className="flex-1">
-              <Text className="text-green-400 text-xs font-semibold mb-0.5">💸 Today’s Profit</Text>
-              <Text className="text-white text-2xl font-bold">
-                PKR {analytics!.today.totalProfit.toLocaleString()}
-              </Text>
-              <Text className="text-surface-400 text-xs mt-0.5">
-                {analytics!.today.transactionCount} deal{analytics!.today.transactionCount !== 1 ? 's' : ''} today
-              </Text>
-            </View>
-            <Text className="text-green-400 text-xl">›</Text>
-          </TouchableOpacity>
-        )}
+        {/* View Analytics Card */}
+        <TouchableOpacity
+          className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-4 flex-row items-center"
+          onPress={() => router.push('/(seller)/analytics' as never)}
+        >
+          <View className="flex-1">
+            <Text className="text-green-400 text-xs font-semibold mb-0.5">📊 Today’s Profit</Text>
+            <Text className="text-white text-2xl font-bold">
+              PKR {(analytics?.today.totalProfit ?? 0).toLocaleString()}
+            </Text>
+            <Text className="text-surface-400 text-xs mt-0.5">
+              {(analytics?.today.transactionCount ?? 0)} deal{(analytics?.today.transactionCount ?? 0) !== 1 ? 's' : ''} today · Tap to view full analytics
+            </Text>
+          </View>
+          <Text className="text-green-400 text-xl font-bold">›</Text>
+        </TouchableOpacity>
 
         {/* Stats */}
         <View className="flex-row gap-3 mb-5">
@@ -186,7 +187,7 @@ export default function SellerDashboard() {
             <Text className="text-surface-300 text-xs mt-1">Open Requests</Text>
           </View>
           <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-surface-200">
-            <Text className="text-primary-400 text-3xl font-bold">{activeRequests.length}</Text>
+            <Text className="text-primary-400 text-3xl font-bold">{activeOrders.length}</Text>
             <Text className="text-surface-300 text-xs mt-1">In Progress</Text>
           </View>
           <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-green-500/20">

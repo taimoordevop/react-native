@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   View,
@@ -12,6 +13,7 @@ import {
   Alert,
   Linking,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +24,7 @@ import {
   useRequest,
 } from '@/features/requests/hooks/useRequests';
 import { profileService } from '@/features/profile/services/profileService';
+import { orderService } from '@/features/orders/services/orderService';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import type { Booking, BookingStatus } from '@/shared/types';
 
@@ -33,15 +36,19 @@ const STATUS_CFG: Record<BookingStatus, { label: string; text: string; bg: strin
   rejected:        { label: 'Rejected',       text: 'text-red-400',     bg: 'bg-red-500/20' },
   in_progress:     { label: 'In Progress',    text: 'text-primary-400', bg: 'bg-primary-500/20' },
   proof_submitted: { label: 'Proof Sent',     text: 'text-purple-400',  bg: 'bg-purple-500/20' },
+  verified:        { label: 'POP Verified',   text: 'text-green-400',   bg: 'bg-green-500/20' },
+  payout_submitted:{ label: 'Paid (Verify)',  text: 'text-indigo-400',  bg: 'bg-indigo-500/20' },
   completed:       { label: 'Completed',      text: 'text-green-400',   bg: 'bg-green-500/20' },
 };
 
 function BookingCard({
   booking,
   onSubmitProof,
+  onZoomImage,
 }: {
   booking: Booking;
   onSubmitProof: () => void;
+  onZoomImage: (url: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATUS_CFG[booking.status];
@@ -156,9 +163,76 @@ function BookingCard({
             </View>
           )}
 
+          {booking.status === 'verified' && (
+            <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2">
+              <Text className="text-green-400 text-xs font-semibold">✓ POP Delivery Verified!</Text>
+              <Text className="text-surface-300 text-xs mt-1">
+                Seller has verified your POP delivery! Awaiting seller payout transfer.
+              </Text>
+            </View>
+          )}
+
+          {booking.status === 'payout_submitted' && (
+            <View className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 mb-3 gap-2">
+              <Text className="text-indigo-400 text-xs font-semibold">💰 Payout Proof Uploaded by Seller</Text>
+              <Text className="text-surface-300 text-xs leading-4">
+                Seller has completed the payout transfer and uploaded the proof. Please review the screenshot below and confirm your receipt.
+              </Text>
+
+              {/* Payout Screenshot Preview */}
+              {booking.supplierPayoutProof && booking.supplierPayoutProof.length > 0 && (
+                <View className="my-1">
+                  <Text className="text-white text-xs font-semibold mb-1">Payout Screenshot:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
+                    {booking.supplierPayoutProof.map((url, i) => (
+                      <TouchableOpacity key={i} onPress={() => onZoomImage(url)} className="mr-2">
+                        <Image
+                          source={{ uri: url }}
+                          style={{ width: 100, height: 100, borderRadius: 8 }}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Confirm Receipt Button */}
+              <TouchableOpacity
+                className="bg-green-600 rounded-lg py-2.5 items-center mt-1"
+                onPress={() => {
+                  if (!request?.buyerOrderId) {
+                    Alert.alert('Error', 'No buyer order linked to this booking.');
+                    return;
+                  }
+                  Alert.alert(
+                    'Confirm Receipt',
+                    'Confirm that you received this payment in your registered payment account? This will mark the booking and order as completed.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Yes, Confirm',
+                        onPress: async () => {
+                          try {
+                            await orderService.supplierConfirmPayout(request.buyerOrderId!);
+                            Alert.alert('Success', 'Payout receipt confirmed! Booking completed.');
+                          } catch (e) {
+                            Alert.alert('Error', e instanceof Error ? e.message : 'Action failed');
+                          }
+                        }
+                      }
+                    ]
+                  );
+                }}
+              >
+                <Text className="text-white font-bold text-xs">✓ Confirm Payment Received</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {booking.status === 'completed' && (
             <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2">
-              <Text className="text-green-400 text-xs font-semibold">✓ Completed — payment released.</Text>
+              <Text className="text-green-400 text-xs font-semibold">✓ Completed — payment received & released.</Text>
             </View>
           )}
 
@@ -169,6 +243,21 @@ function BookingCard({
               onPress={onSubmitProof}
             >
               <Text className="text-white font-bold">✓ Mark POP Sent + Submit Proof</Text>
+            </TouchableOpacity>
+          )}
+          {/* Direct Order Shortcut */}
+          {booking.orderId && (
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/orders/[id]',
+                  params: { id: booking.orderId },
+                } as never)
+              }
+              className="bg-primary-500/10 border border-primary-500/30 rounded-xl py-3.5 items-center justify-center flex-row gap-2 mt-3 mb-1"
+            >
+              <Text className="text-primary-400 text-base">📦</Text>
+              <Text className="text-primary-400 font-bold text-sm">View Linked Order & Action Flow</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -187,16 +276,16 @@ export default function SupplierMyBookingsScreen() {
   const [proofUrl, setProofUrl] = useState('');
   const [proofNotes, setProofNotes] = useState('');
   const [proofError, setProofError] = useState<string | null>(null);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
 
   // Hybrid Flow & Uploading states
-  const [selectedUri, setSelectedUri] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<'image' | 'video' | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'video' | 'image' }[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploading, setUploading] = useState<boolean>(false);
   const [sellerWhatsapp, setSellerWhatsapp] = useState<string>('');
 
   const filtered = bookings.filter((b) => {
-    if (filter === 'active') return ['pending', 'accepted', 'in_progress', 'proof_submitted'].includes(b.status);
+    if (filter === 'active') return ['pending', 'accepted', 'in_progress', 'proof_submitted', 'verified', 'payout_submitted'].includes(b.status);
     if (filter === 'completed') return ['completed', 'rejected'].includes(b.status);
     return true;
   });
@@ -206,11 +295,14 @@ export default function SupplierMyBookingsScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos', 'images'],
         quality: 0.85,
+        allowsMultipleSelection: true,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setSelectedUri(asset.uri);
-        setSelectedType(asset.type === 'video' ? 'video' : 'image');
+        const assets = result.assets.map((asset) => ({
+          uri: asset.uri,
+          type: asset.type === 'video' ? 'video' as const : 'image' as const,
+        }));
+        setSelectedMedia((prev) => [...prev, ...assets]);
         setProofError(null);
       }
     } catch (err) {
@@ -270,20 +362,33 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
     if (!proofBooking) return;
 
     let finalProofUrl = proofUrl.trim();
+    const uploadedUrls: string[] = [];
 
-    // Option A: Upload picked file to Cloudinary
-    if (selectedUri) {
+    // Option A: Upload picked files to Cloudinary
+    if (selectedMedia.length > 0) {
       try {
         setUploading(true);
         setProofError(null);
         const folder = `proof-bookings/${proofBooking.id}`;
-        const cloudinaryResult = await uploadToCloudinary(
-          selectedUri,
-          folder,
-          selectedType === 'video' ? 'video' : 'image',
-          (progress) => setUploadProgress(progress),
-        );
-        finalProofUrl = cloudinaryResult.secure_url;
+
+        for (let i = 0; i < selectedMedia.length; i++) {
+          const item = selectedMedia[i];
+          const cloudinaryResult = await uploadToCloudinary(
+            item.uri,
+            folder,
+            item.type,
+            (progress) => {
+              const totalProgress = Math.round(
+                ((i * 100) + progress) / selectedMedia.length
+              );
+              setUploadProgress(totalProgress);
+            }
+          );
+          uploadedUrls.push(cloudinaryResult.secure_url);
+        }
+        if (uploadedUrls.length > 0) {
+          finalProofUrl = uploadedUrls[0];
+        }
       } catch (err) {
         setProofError(err instanceof Error ? err.message : 'Failed to upload proof file.');
         setUploading(false);
@@ -304,13 +409,17 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
     }
 
     submitProof(
-      { id: proofBooking.id, proofUrl: finalProofUrl, proofNotes: proofNotes.trim() || null },
+      {
+        id: proofBooking.id,
+        proofUrl: finalProofUrl,
+        proofNotes: proofNotes.trim() || null,
+        proofUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+      },
       {
         onSuccess: () => {
           setProofBooking(null);
           setProofUrl('');
-          setSelectedUri(null);
-          setSelectedType(null);
+          setSelectedMedia([]);
           setUploadProgress(0);
           setUploading(false);
           setProofNotes('');
@@ -367,8 +476,7 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
             onSubmitProof={() => {
               setProofBooking(item);
               setProofUrl('');
-              setSelectedUri(null);
-              setSelectedType(null);
+              setSelectedMedia([]);
               setUploadProgress(0);
               setProofNotes('');
               setProofError(null);
@@ -379,6 +487,7 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
                 }
               }).catch(() => {});
             }}
+            onZoomImage={setViewerImage}
           />}
         />
       )}
@@ -403,35 +512,42 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
               <View className="bg-surface-100 border border-primary-500/20 rounded-2xl p-4 mb-4">
                 <Text className="text-primary-400 font-bold text-sm mb-1">Option A: In-App Upload (Primary)</Text>
                 <Text className="text-surface-300 text-xs mb-3">
-                  Upload a screen recording or screenshot of the transaction directly.
+                  Upload one or more screen recordings or screenshots of the transaction directly.
                 </Text>
 
-                {selectedUri ? (
-                  <View className="bg-surface-200 border border-green-500/30 rounded-xl p-3 flex-row items-center justify-between">
-                    <View className="flex-1 mr-2">
-                      <Text className="text-green-400 text-xs font-semibold mb-0.5">✓ Ready to Upload</Text>
-                      <Text className="text-white text-xs" numberOfLines={1}>
-                        {selectedUri.split('/').pop()}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      className="bg-surface-100 rounded-lg px-3 py-2 border border-surface-300"
-                      onPress={() => {
-                        setSelectedUri(null);
-                        setSelectedType(null);
-                      }}
-                    >
-                      <Text className="text-surface-300 text-xs font-bold">Clear</Text>
-                    </TouchableOpacity>
+                {selectedMedia.length > 0 && (
+                  <View className="mb-3 gap-2">
+                    {selectedMedia.map((item, idx) => (
+                      <View key={idx} className="bg-surface-200 border border-green-500/20 rounded-xl p-3 flex-row items-center justify-between">
+                        <View className="flex-1 mr-2">
+                          <Text className="text-green-400 text-[10px] font-semibold mb-0.5">
+                            ✓ {item.type === 'video' ? '🎬 Video' : '📸 Image'} #{idx + 1}
+                          </Text>
+                          <Text className="text-white text-xs" numberOfLines={1}>
+                            {item.uri.split('/').pop()}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          className="bg-surface-100 rounded-lg px-2 py-1.5 border border-surface-300"
+                          onPress={() => {
+                            setSelectedMedia((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                        >
+                          <Text className="text-red-400 text-xs font-bold">Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    className="bg-primary-500/10 border border-primary-500/40 rounded-xl py-3 items-center"
-                    onPress={handlePickFile}
-                  >
-                    <Text className="text-primary-400 font-bold text-sm">📁 Select Video / Image from Gallery</Text>
-                  </TouchableOpacity>
                 )}
+
+                <TouchableOpacity
+                  className="bg-primary-500/10 border border-primary-500/40 rounded-xl py-3 items-center flex-row justify-center gap-2"
+                  onPress={handlePickFile}
+                >
+                  <Text className="text-primary-400 font-bold text-sm">
+                    {selectedMedia.length > 0 ? '➕ Add More Videos/Images' : '📁 Select Videos/Images from Gallery'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* Option B: WhatsApp Fallback */}
@@ -451,7 +567,7 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
               </View>
 
               {/* Option C: Paste URL */}
-              {!selectedUri && (
+              {selectedMedia.length === 0 && (
                 <View className="bg-surface-100 border border-surface-200 rounded-2xl p-4 mb-4">
                   <Text className="text-white font-bold text-sm mb-1">Option C: Paste External Link</Text>
                   <Text className="text-surface-300 text-xs mb-3">
@@ -526,6 +642,32 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Zoom / Full Screen Image Viewer Modal */}
+      <Modal
+        visible={!!viewerImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerImage(null)}
+      >
+        <View className="flex-1 bg-black/90 items-center justify-center">
+          <TouchableOpacity
+            className="absolute top-10 right-4 px-3 py-2 rounded-full bg-black/60 z-10"
+            onPress={() => setViewerImage(null)}
+          >
+            <Text className="text-white text-sm">Close</Text>
+          </TouchableOpacity>
+          {viewerImage && (
+            <TouchableOpacity activeOpacity={1} onPress={() => setViewerImage(null)}>
+              <Image
+                source={{ uri: viewerImage }}
+                style={{ width: 350, height: 600, borderRadius: 12 }}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
     </SafeAreaView>

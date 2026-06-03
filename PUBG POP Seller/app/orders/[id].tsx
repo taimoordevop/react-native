@@ -1,5 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { Video, ResizeMode } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -24,9 +26,11 @@ import {
   useConfirmPaymentReceived,
   useMarkProofReceivedViaWhatsApp,
   useSupplierConfirmPayout,
+  useConfirmSellerPayment,
 } from '@/features/orders/hooks/useOrders';
 import { orderService } from '@/features/orders/services/orderService';
 import { profileService } from '@/features/profile/services/profileService';
+import { useLinkedRequest } from '@/features/requests/hooks/useRequests';
 import type { Order, OrderProofVideo, OrderStatus, SellerPaymentDetails, UserProfile } from '@/shared/types';
 
 const CARD_W = Dimensions.get('window').width - 32;
@@ -76,11 +80,11 @@ function StatusTracker({ current }: { current: OrderStatus }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <View className="flex-row justify-between py-2 border-b border-surface-200">
       <Text className="text-surface-300 text-sm">{label}</Text>
-      <Text className="text-white text-sm font-medium">{value}</Text>
+      <Text className={`text-sm font-medium ${valueColor ?? 'text-white'}`}>{value}</Text>
     </View>
   );
 }
@@ -146,6 +150,13 @@ function PaymentDetailsPanel({ details }: { details: SellerPaymentDetails }) {
   );
 }
 
+function hasPaymentMethods(details: SellerPaymentDetails | null | undefined): boolean {
+  if (!details) return false;
+  if (details.methods && details.methods.length > 0) return true;
+  if (details.jazzCash || details.easyPaisa || details.bankAccount) return true;
+  return false;
+}
+
 function ProofImageGrid({
   urls,
   label,
@@ -188,36 +199,97 @@ function ProofVideoCard({
   onImagePress?: (url: string) => void;
 }) {
   const [playing, setPlaying] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const videoRef = useRef<Video>(null);
   const isVideo = proof.type === 'video';
 
+  const optimizedUrl = isVideo && proof.url.includes('res.cloudinary.com')
+    ? proof.url.replace('/video/upload/', '/video/upload/q_auto,vc_h264,f_mp4/')
+    : proof.url;
+
+  const posterUri = isVideo ? (proof.url.includes('res.cloudinary.com') ? proof.url.replace('/video/upload/', '/video/upload/f_jpg,so_1/').replace(/\.[^/.]+$/, '.jpg') : undefined) : undefined;
+
+  const handlePlay = async () => {
+    setPlaying(true);
+    if (videoRef.current) {
+      try {
+        await videoRef.current.playAsync();
+      } catch (err) {
+        console.error('Failed to trigger playAsync:', err);
+      }
+    }
+  };
+
+  const downloadVideo = async () => {
+    try {
+      setDownloading(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync(true);
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'We need storage permission to save the video to your gallery.');
+        setDownloading(false);
+        return;
+      }
+
+      // Download file to local document directory
+      const filename = `POP_Proof_${Date.now()}.mp4`;
+      const localUri = FileSystem.documentDirectory + filename;
+      const { uri } = await FileSystem.downloadAsync(proof.url, localUri);
+
+      // Save to gallery
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Success ✓', 'Video saved to your gallery.');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Download Failed', 'Could not save the video. Please check your connection.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
-    <View className="bg-surface-200 rounded-2xl overflow-hidden mb-3">
+    <View className="bg-surface-200 rounded-2xl overflow-hidden mb-3 relative">
       {isVideo ? (
         <View>
           <Video
             ref={videoRef}
-            source={{ uri: proof.url }}
+            source={{ uri: optimizedUrl }}
             /* eslint-disable-next-line react-native/no-inline-styles */
             style={{ width: CARD_W, height: CARD_W * 0.56 }}
             resizeMode={ResizeMode.CONTAIN}
             useNativeControls
             shouldPlay={playing}
             isLooping={false}
+            usePoster={!!posterUri}
+            posterSource={posterUri ? { uri: posterUri } : undefined}
+            posterStyle={{ resizeMode: 'cover' }}
+            progressUpdateIntervalMillis={1000}
             onPlaybackStatusUpdate={(s) => {
               if ('didJustFinish' in s && s.didJustFinish) setPlaying(false);
             }}
           />
           {!playing && (
             <TouchableOpacity
-              onPress={() => setPlaying(true)}
-              className="absolute inset-0 items-center justify-center"
+              onPress={handlePlay}
+              className="absolute inset-0 items-center justify-center bg-black/20"
             >
               <View className="bg-black/60 rounded-full w-16 h-16 items-center justify-center">
-                <Text className="text-white text-2xl">▶</Text>
+                <Text className="text-white text-2xl ml-1">▶</Text>
               </View>
             </TouchableOpacity>
           )}
+
+          {/* Download Video Button */}
+          <TouchableOpacity
+            onPress={downloadVideo}
+            disabled={downloading}
+            className="absolute top-2.5 right-2.5 bg-black/60 rounded-xl px-2.5 py-1.5 flex-row items-center border border-white/10"
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text className="text-white text-xs font-bold">📥 Save Video</Text>
+            )}
+          </TouchableOpacity>
         </View>
       ) : (
         <TouchableOpacity onPress={() => onImagePress?.(proof.url)}>
@@ -256,11 +328,13 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { order, isLoading } = useOrderLive(id);
+  const { data: linkedRequest } = useLinkedRequest(id);
   const updateStatus = useUpdateOrderStatus();
   const verifyComplete = useVerifyAndComplete();
   const confirmPayment = useConfirmPaymentReceived();
   const markProofWhatsApp = useMarkProofReceivedViaWhatsApp();
   const supplierConfirmPayout = useSupplierConfirmPayout();
+  const confirmSellerPayment = useConfirmSellerPayment();
 
   const [sellerPayDetails, setSellerPayDetails] = useState<SellerPaymentDetails | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
@@ -322,7 +396,7 @@ export default function OrderDetailScreen() {
   const cfg = STATUS_CONFIG[order.status];
   const supplierNet = order.totalPKR - order.commission;
   const hasBuyerProof = (order.buyerPaymentProof?.length ?? 0) > 0;
-  const hasPayoutProof = (order.supplierPayoutProof?.length ?? 0) > 0;
+  const hasPayoutProof = !isBuyer && (order.supplierPayoutProof?.length ?? 0) > 0;
 
   const confirmAction = (title: string, msg: string, onConfirm: () => void) => {
     Alert.alert(title, msg, [
@@ -498,6 +572,25 @@ Please check your PUBG game and open the app to click *I Received POP — Confir
           </View>
         </View>
 
+        {/* Linked Supplier Request (Seller only) */}
+        {isSeller && linkedRequest && (
+          <View className="bg-surface-100 rounded-2xl p-4 mb-4 border border-green-500/20">
+            <Text className="text-white font-semibold mb-3">Linked Supplier Request</Text>
+            <InfoRow label="Supplier Rate" value={`PKR ${linkedRequest.ratePer10k}/10k`} />
+            <InfoRow 
+              label="Your Margin (Commission)" 
+              value={`PKR ${(linkedRequest.buyerRatePer10k ?? order.agreedRatePer10k) - linkedRequest.ratePer10k}/10k`} 
+              valueColor="text-green-400 font-bold"
+            />
+            <View className="flex-row justify-between pt-2 border-t border-surface-200/40 mt-2">
+              <Text className="text-surface-300 text-sm">Projected Net Profit</Text>
+              <Text className="text-yellow-400 text-sm font-bold">
+                PKR {Math.max(0, Math.round((order.popAmount / 10000) * ((linkedRequest.buyerRatePer10k ?? order.agreedRatePer10k) - linkedRequest.ratePer10k) - order.commission)).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Parties */}
         <View className="bg-surface-100 rounded-2xl p-4 mb-4">
           <Text className="text-white font-semibold mb-3">Parties</Text>
@@ -510,6 +603,17 @@ Please check your PUBG game and open the app to click *I Received POP — Confir
         </View>
 
         {/* —— Payment / Proof screenshots —— */}
+        {order.isDirectRequest && order.sellerPaymentProof && order.sellerPaymentProof.length > 0 && (
+          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+            <ProofImageGrid
+              urls={order.sellerPaymentProof}
+              label="Seller Payment Proof Screenshots"
+              color="text-indigo-400"
+              onPressImage={setFullImageUrl}
+            />
+          </View>
+        )}
+
         {hasBuyerProof && (
           <View className="bg-surface-100 rounded-2xl p-4 mb-4">
             <ProofImageGrid
@@ -604,7 +708,7 @@ Please check your PUBG game and open the app to click *I Received POP — Confir
             {/* Awaiting payment — show seller payment details */}
             {order.status === 'pending_payment' && !hasBuyerProof && (
               <>
-                {sellerPayDetails ? (
+                {sellerPayDetails && hasPaymentMethods(sellerPayDetails) ? (
                   <PaymentDetailsPanel details={sellerPayDetails} />
                 ) : (
                   <View className="bg-surface-100 rounded-2xl p-4 mb-2">
@@ -702,261 +806,368 @@ Please check your PUBG game and open the app to click *I Received POP — Confir
         {/* ── SELLER ACTIONS ── */}
         {isSeller && (
           <View className="gap-3">
-
-            {/* Contextual Supplier Request button */}
-            {['paid', 'in_progress'].includes(order.status) && (
-              <TouchableOpacity
-                className="bg-green-600/10 border border-green-500/30 rounded-2xl py-4 items-center flex-row justify-center gap-2 mb-2"
-                onPress={() =>
-                  router.push({
-                    pathname: '/(seller)/post-request',
-                    params: {
-                      buyerOrderId: order.id,
-                      buyerPubgId: order.targetPubgId,
-                      popAmount: String(order.popAmount),
-                      rate: String(order.agreedRatePer10k),
-                    },
-                  } as never)
-                }
-              >
-                <Text className="text-green-400 text-lg">🏪</Text>
-                <Text className="text-green-400 font-bold text-base">
-                  Create Supplier Request for this Order
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Buyer submitted payment screenshot — seller confirms */}
-            {order.status === 'pending_payment' && hasBuyerProof && (
+            {order.isDirectRequest ? (
               <>
-                <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-3 mb-1">
-                  <Text className="text-yellow-400 text-sm font-semibold mb-1">
-                    💰 Buyer submitted payment proof
-                  </Text>
-                  <Text className="text-surface-300 text-xs">
-                    Review the screenshots above then confirm receipt of PKR {order.totalPKR.toLocaleString()}.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  className={`rounded-2xl py-4 items-center ${isMutating ? 'bg-surface-200' : 'bg-green-600'}`}
-                  onPress={handleConfirmPayment}
-                  disabled={isMutating}
-                >
-                  {isMutating ? <ActivityIndicator color="#fff" /> : (
-                    <Text className="text-white font-bold text-base">✓ Mark Payment Received</Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
+                {order.status === 'pending_payment' && (
+                  <>
+                    {(!order.sellerPaymentProof || order.sellerPaymentProof.length === 0) ? (
+                      <>
+                        {sellerPayDetails && hasPaymentMethods(sellerPayDetails) ? (
+                          <PaymentDetailsPanel details={sellerPayDetails} />
+                        ) : (
+                          <View className="bg-surface-100 rounded-2xl p-4 mb-2">
+                            <Text className="text-surface-300 text-sm">
+                              Supplier hasn’t added payment details yet. Contact them directly.
+                            </Text>
+                          </View>
+                        )}
+                        <View className="bg-surface-100 rounded-2xl p-3 mb-1">
+                          <Text className="text-surface-300 text-xs text-center text-yellow-400">
+                            Transfer PKR <Text className="text-white font-bold">{order.totalPKR.toLocaleString()}</Text> then upload your screenshot below.
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          className="bg-indigo-600 rounded-2xl py-4 items-center"
+                          onPress={() =>
+                            router.push({
+                              pathname: '/orders/payment-proof-upload',
+                              params: { orderId: order.id, mode: 'seller_payment' },
+                            } as never)
+                          }
+                          disabled={isMutating}
+                        >
+                          {isMutating ? <ActivityIndicator color="#fff" /> : (
+                            <Text className="text-white font-bold text-base">📸 Upload Payment to Supplier</Text>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4">
+                        <Text className="text-blue-400 font-semibold mb-1">⏳ Awaiting Supplier Confirmation</Text>
+                        <Text className="text-surface-300 text-sm">
+                          Your payment screenshot was submitted. The supplier will confirm receipt shortly.
+                        </Text>
+                        <TouchableOpacity
+                          className="mt-3 py-2 items-center"
+                          onPress={() =>
+                            router.push({
+                              pathname: '/orders/payment-proof-upload',
+                              params: { orderId: order.id, mode: 'seller_payment' },
+                            } as never)
+                          }
+                          disabled={isMutating}
+                        >
+                          <Text className="text-primary-400 text-xs">+ Add more screenshots</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
+                )}
 
-            {/* Waiting for buyer to upload payment */}
-            {order.status === 'pending_payment' && !hasBuyerProof && (
-              <View className="bg-surface-100 rounded-2xl p-4">
-                <Text className="text-surface-300 text-sm text-center">
-                  ⏳ Waiting for buyer to upload payment screenshot…
-                </Text>
-              </View>
-            )}
-            {order.status === 'in_progress' && (
-              <View className="gap-3">
-                {order.proofVideos.length > 0 && (
-                  <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-3 mb-1">
-                    <Text className="text-purple-400 text-sm font-semibold">
-                      {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} uploaded —{' '}
-                      {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 recorded
-                    </Text>
-                    <Text className="text-surface-400 text-xs mt-1">
-                      You can add more proofs until fully sent.
+                {order.status === 'in_progress' && (
+                  <View className="bg-surface-100 rounded-2xl p-4">
+                    <Text className="text-white font-semibold mb-1">⏳ Supplier is Preparing POP</Text>
+                    <Text className="text-surface-300 text-xs leading-relaxed">
+                      The supplier has confirmed receipt of your payment and is preparing the POP delivery.
                     </Text>
                   </View>
                 )}
-                
-                <TouchableOpacity
-                  className="bg-purple-600 rounded-2xl py-4 items-center"
-                  onPress={() =>
-                    router.push({
-                      pathname: '/orders/proof-upload',
-                      params: { orderId: order.id },
-                    } as never)
-                  }
-                >
-                  <Text className="text-white font-bold text-base">
-                    {order.proofVideos.length > 0 ? '+ Add More Proof' : '📹 Upload POP Delivery Proof'}
-                  </Text>
-                </TouchableOpacity>
 
-                <TouchableOpacity
-                  className="border border-green-600 bg-green-500/10 rounded-2xl py-4 items-center flex-row justify-center gap-2"
-                  onPress={handleMarkProofWhatsApp}
-                  disabled={isMutating}
-                >
-                  <Text className="text-green-400 text-lg">💬</Text>
-                  <Text className="text-green-400 font-bold text-base">Mark Proof Received via WhatsApp</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                {order.status === 'proof_submitted' && (
+                  <TouchableOpacity
+                    className="bg-green-600 rounded-2xl py-4 items-center"
+                    onPress={handleSellerVerifyProof}
+                    disabled={isMutating}
+                  >
+                    {isMutating ? <ActivityIndicator color="#fff" /> : (
+                      <Text className="text-white font-bold text-base">✓ Verify POP Delivery &amp; Complete</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
 
-            {/* Proof submitted — seller reviews and verifies */}
-            {order.status === 'proof_submitted' && (
-              <View className="gap-3">
-                <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 mb-1">
-                  <Text className="text-purple-400 font-semibold mb-1">
-                    🎬 Proof Submitted for Review
-                  </Text>
-                  {order.proofMethod === 'whatsapp' ? (
-                    <Text className="text-green-400 text-xs font-semibold mb-1">
-                      ✓ Received via WhatsApp Fallback
+                {order.status === 'completed' && (
+                  <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-2">
+                    <Text className="text-green-400 font-semibold mb-1">✓ Order Completed</Text>
+                    <Text className="text-surface-300 text-xs leading-5">
+                      This direct order has been successfully completed and the POP has been verified.
                     </Text>
-                  ) : (
-                    <Text className="text-surface-300 text-xs">
-                      {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} ·{' '}
-                      {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 total
+                    <TouchableOpacity
+                      className="bg-yellow-500 rounded-xl py-3.5 items-center justify-center mt-3"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(seller)/log-manual-deal',
+                          params: {
+                            popAmount: String(order.popAmount),
+                            supplierRate: String(order.agreedRatePer10k),
+                            description: `Direct Request Order #${order.id.slice(-6).toUpperCase()} completed`,
+                            orderId: order.id,
+                          },
+                        } as never)
+                      }
+                    >
+                      <Text className="text-slate-950 font-bold text-sm">📝 Log Profit in Analytics</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Contextual Supplier Request button */}
+                {['paid', 'in_progress'].includes(order.status) && (
+                  <TouchableOpacity
+                    className="bg-green-600/10 border border-green-500/30 rounded-2xl py-4 items-center flex-row justify-center gap-2 mb-2"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(seller)/post-request',
+                        params: {
+                          buyerOrderId: order.id,
+                          buyerPubgId: order.targetPubgId,
+                          popAmount: String(order.popAmount),
+                          rate: String(order.agreedRatePer10k),
+                        },
+                      } as never)
+                    }
+                  >
+                    <Text className="text-green-400 text-lg">🏪</Text>
+                    <Text className="text-green-400 font-bold text-base">
+                      Create Supplier Request for this Order
                     </Text>
-                  )}
-                  <Text className="text-surface-400 text-xs mt-1">
-                    {order.proofStatus === 'verified'
-                      ? 'POP delivery has been successfully verified. Buyer can now see proofs inside the app.'
-                      : 'Review the proof details, then verify if POP was delivered correctly.'}
-                  </Text>
-                </View>
+                  </TouchableOpacity>
+                )}
 
-                {order.proofStatus !== 'verified' ? (
+                {/* Buyer submitted payment screenshot — seller confirms */}
+                {order.status === 'pending_payment' && hasBuyerProof && (
                   <>
+                    <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-3 mb-1">
+                      <Text className="text-yellow-400 text-sm font-semibold mb-1">
+                        💰 Buyer submitted payment proof
+                      </Text>
+                      <Text className="text-surface-300 text-xs">
+                        Review the screenshots above then confirm receipt of PKR {order.totalPKR.toLocaleString()}.
+                      </Text>
+                    </View>
                     <TouchableOpacity
                       className={`rounded-2xl py-4 items-center ${isMutating ? 'bg-surface-200' : 'bg-green-600'}`}
-                      onPress={handleSellerVerifyProof}
+                      onPress={handleConfirmPayment}
                       disabled={isMutating}
                     >
                       {isMutating ? <ActivityIndicator color="#fff" /> : (
-                        <Text className="text-white font-bold text-base">✓ Verify Delivery &amp; Release</Text>
+                        <Text className="text-white font-bold text-base">✓ Mark Payment Received</Text>
                       )}
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {/* Waiting for buyer to upload payment */}
+                {order.status === 'pending_payment' && !hasBuyerProof && (
+                  <View className="bg-surface-100 rounded-2xl p-4">
+                    <Text className="text-surface-300 text-sm text-center">
+                      ⏳ Waiting for buyer to upload payment screenshot…
+                    </Text>
+                  </View>
+                )}
+                {order.status === 'in_progress' && (
+                  <View className="gap-3">
+                    {order.proofVideos.length > 0 && (
+                      <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-3 mb-1">
+                        <Text className="text-purple-400 text-sm font-semibold">
+                          {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} uploaded —{' '}
+                          {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 recorded
+                        </Text>
+                        <Text className="text-surface-400 text-xs mt-1">
+                          You can add more proofs until fully sent.
+                        </Text>
+                      </View>
+                    )}
+                    
+                    <TouchableOpacity
+                      className="bg-purple-600 rounded-2xl py-4 items-center"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/orders/proof-upload',
+                          params: { orderId: order.id },
+                        } as never)
+                      }
+                    >
+                      <Text className="text-white font-bold text-base">
+                        {order.proofVideos.length > 0 ? '+ Add More Proof' : '📹 Upload POP Delivery Proof'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      className="border border-green-600 bg-green-500/10 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                      onPress={handleMarkProofWhatsApp}
+                      disabled={isMutating}
+                    >
+                      <Text className="text-green-400 text-lg">💬</Text>
+                      <Text className="text-green-400 font-bold text-base">Mark Proof Received via WhatsApp</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Proof submitted — seller reviews and verifies */}
+                {order.status === 'proof_submitted' && (
+                  <View className="gap-3">
+                    <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 mb-1">
+                      <Text className="text-purple-400 font-semibold mb-1">
+                        🎬 Proof Submitted for Review
+                      </Text>
+                      {order.proofMethod === 'whatsapp' ? (
+                        <Text className="text-green-400 text-xs font-semibold mb-1">
+                          ✓ Received via WhatsApp Fallback
+                        </Text>
+                      ) : (
+                        <Text className="text-surface-300 text-xs">
+                          {order.proofVideos.length} proof{order.proofVideos.length > 1 ? 's' : ''} ·{' '}
+                          {order.proofVideos.reduce((s, v) => s + (v.diamondsSent ?? 0), 0).toLocaleString()} 💎 total
+                        </Text>
+                      )}
+                      <Text className="text-surface-400 text-xs mt-1">
+                        {order.proofStatus === 'verified'
+                          ? 'POP delivery has been successfully verified. Buyer can now see proofs inside the app.'
+                          : 'Review the proof details, then verify if POP was delivered correctly.'}
+                      </Text>
+                    </View>
+
+                    {order.proofStatus !== 'verified' ? (
+                      <>
+                        <TouchableOpacity
+                          className={`rounded-2xl py-4 items-center ${isMutating ? 'bg-surface-200' : 'bg-green-600'}`}
+                          onPress={handleSellerVerifyProof}
+                          disabled={isMutating}
+                        >
+                          {isMutating ? <ActivityIndicator color="#fff" /> : (
+                            <Text className="text-white font-bold text-base">✓ Verify Delivery &amp; Release</Text>
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          className="bg-primary-500 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                          onPress={() => setForwardModalVisible(true)}
+                        >
+                          <Text className="text-white text-lg">💬</Text>
+                          <Text className="text-white font-bold text-base">Forward Proof to Buyer</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          className="bg-green-600 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                          onPress={() => handleForwardToBuyer(order.buyerId, order.buyerName)}
+                        >
+                          <Text className="text-white text-lg">💬</Text>
+                          <Text className="text-white font-bold text-base">Share Proof with Buyer via WhatsApp</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          className="bg-primary-500/20 border border-primary-500/30 rounded-2xl py-4 items-center flex-row justify-center gap-2"
+                          onPress={() => setForwardModalVisible(true)}
+                        >
+                          <Text className="text-primary-400 text-lg">👤</Text>
+                          <Text className="text-primary-400 font-bold text-base">Forward to other Buyers</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+
+                    {order.proofStatus !== 'verified' && (
+                      <TouchableOpacity
+                        className="bg-surface-100 rounded-2xl py-3 items-center"
+                        onPress={() =>
+                          router.push({
+                            pathname: '/orders/proof-upload',
+                            params: { orderId: order.id },
+                          } as never)
+                        }
+                      >
+                        <Text className="text-surface-300 text-sm">+ Request More Proof / Add Segment</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Buyer verified POP — seller uploads payout proof to their POP supplier */}
+                {order.status === 'verified' && (
+                  <View className="gap-3">
+                    <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-3">
+                      <Text className="text-green-400 font-semibold">✓ POP Delivery Verified by Buyer</Text>
+                      <Text className="text-surface-300 text-xs mt-1">
+                        Now pay PKR {supplierNet.toLocaleString()} to your POP supplier and upload the screenshot.
+                      </Text>
+                    </View>
+
+                    {/* Show Supplier Payment details panel right here for the Seller to copy easily! */}
+                    {sellerPayDetails && hasPaymentMethods(sellerPayDetails) ? (
+                      <PaymentDetailsPanel details={sellerPayDetails} />
+                    ) : (
+                      <View className="bg-surface-100 rounded-2xl p-4">
+                        <Text className="text-surface-300 text-xs leading-relaxed text-center">
+                          {"⚠️ The Supplier has not registered their payment details yet. Ask them to add details in Profile > Contact & Storage."}
+                        </Text>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      className="bg-green-600 rounded-2xl py-4 items-center"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/orders/payment-proof-upload',
+                          params: { orderId: order.id, mode: 'seller_payout' },
+                        } as never)
+                      }
+                    >
+                      <Text className="text-white font-bold text-base">💸 Upload Payout Proof</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       className="bg-primary-500 rounded-2xl py-4 items-center flex-row justify-center gap-2"
-                      onPress={() => setForwardModalVisible(true)}
-                    >
-                      <Text className="text-white text-lg">💬</Text>
-                      <Text className="text-white font-bold text-base">Forward Proof to Buyer</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      className="bg-green-600 rounded-2xl py-4 items-center flex-row justify-center gap-2"
                       onPress={() => handleForwardToBuyer(order.buyerId, order.buyerName)}
                     >
                       <Text className="text-white text-lg">💬</Text>
                       <Text className="text-white font-bold text-base">Share Proof with Buyer via WhatsApp</Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                      className="bg-primary-500/20 border border-primary-500/30 rounded-2xl py-4 items-center flex-row justify-center gap-2"
-                      onPress={() => setForwardModalVisible(true)}
-                    >
-                      <Text className="text-primary-400 text-lg">👤</Text>
-                      <Text className="text-primary-400 font-bold text-base">Forward to other Buyers</Text>
-                    </TouchableOpacity>
-                  </>
+                  </View>
                 )}
 
-                {order.proofStatus !== 'verified' && (
+                {/* Payout submitted — awaiting supplier receipt confirmation */}
+                {order.status === 'payout_submitted' && (
+                  <View className="gap-3">
+                    <View className="bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-4">
+                      <Text className="text-indigo-400 font-semibold mb-1">⏳ Awaiting Supplier Confirmation</Text>
+                      <Text className="text-surface-300 text-xs leading-relaxed">
+                        You have successfully uploaded the payout proof. The Supplier has been notified to verify the payment receipt. Once they confirm, the order will finalize and both will get their money.
+                      </Text>
+                    </View>
+
+                    {order.supplierPayoutProof && order.supplierPayoutProof.length > 0 && (
+                      <View className="mb-2">
+                        <Text className="text-white font-semibold mb-2">Your Uploaded Payout Proof:</Text>
+                        {order.supplierPayoutProof.map((url, i) => (
+                          <TouchableOpacity key={i} onPress={() => setFullImageUrl(url)}>
+                            <Image
+                              source={{ uri: url }}
+                              style={{ width: CARD_W, height: CARD_W * 0.56, borderRadius: 16 }}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Legacy: order already paid via old flow */}
+                {order.status === 'paid' && (
                   <TouchableOpacity
-                    className="bg-surface-100 rounded-2xl py-3 items-center"
-                    onPress={() =>
-                      router.push({
-                        pathname: '/orders/proof-upload',
-                        params: { orderId: order.id },
-                      } as never)
-                    }
+                    className="bg-primary-500 rounded-2xl py-4 items-center"
+                    onPress={() => updateStatus.mutate({ id: order.id, status: 'in_progress' })}
+                    disabled={isMutating}
                   >
-                    <Text className="text-surface-300 text-sm">+ Request More Proof / Add Segment</Text>
+                    {isMutating ? <ActivityIndicator color="#fff" /> : (
+                      <Text className="text-white font-bold text-base">Start Sending POP</Text>
+                    )}
                   </TouchableOpacity>
                 )}
-              </View>
-            )}
-
-            {/* Buyer verified POP — seller uploads payout proof to their POP supplier */}
-            {order.status === 'verified' && (
-              <View className="gap-3">
-                <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-3">
-                  <Text className="text-green-400 font-semibold">✓ POP Delivery Verified by Buyer</Text>
-                  <Text className="text-surface-300 text-xs mt-1">
-                    Now pay PKR {supplierNet.toLocaleString()} to your POP supplier and upload the screenshot.
-                  </Text>
-                </View>
-
-                {/* Show Supplier Payment details panel right here for the Seller to copy easily! */}
-                {sellerPayDetails ? (
-                  <PaymentDetailsPanel details={sellerPayDetails} />
-                ) : (
-                  <View className="bg-surface-100 rounded-2xl p-4">
-                    <Text className="text-surface-300 text-xs leading-relaxed text-center">
-                      {"⚠️ The Supplier has not registered their payment details yet. Ask them to add details in Profile > Contact & Storage."}
-                    </Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  className="bg-green-600 rounded-2xl py-4 items-center"
-                  onPress={() =>
-                    router.push({
-                      pathname: '/orders/payment-proof-upload',
-                      params: { orderId: order.id, mode: 'seller_payout' },
-                    } as never)
-                  }
-                >
-                  <Text className="text-white font-bold text-base">💸 Upload Payout Proof</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className="bg-primary-500 rounded-2xl py-4 items-center flex-row justify-center gap-2"
-                  onPress={() => handleForwardToBuyer(order.buyerId, order.buyerName)}
-                >
-                  <Text className="text-white text-lg">💬</Text>
-                  <Text className="text-white font-bold text-base">Share Proof with Buyer via WhatsApp</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Payout submitted — awaiting supplier receipt confirmation */}
-            {order.status === 'payout_submitted' && (
-              <View className="gap-3">
-                <View className="bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-4">
-                  <Text className="text-indigo-400 font-semibold mb-1">⏳ Awaiting Supplier Confirmation</Text>
-                  <Text className="text-surface-300 text-xs leading-relaxed">
-                    You have successfully uploaded the payout proof. The Supplier has been notified to verify the payment receipt. Once they confirm, the order will finalize and both will get their money.
-                  </Text>
-                </View>
-
-                {order.supplierPayoutProof && order.supplierPayoutProof.length > 0 && (
-                  <View className="mb-2">
-                    <Text className="text-white font-semibold mb-2">Your Uploaded Payout Proof:</Text>
-                    {order.supplierPayoutProof.map((url, i) => (
-                      <TouchableOpacity key={i} onPress={() => setFullImageUrl(url)}>
-                        <Image
-                          source={{ uri: url }}
-                          style={{ width: CARD_W, height: CARD_W * 0.56, borderRadius: 16 }}
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Legacy: order already paid via old flow */}
-            {order.status === 'paid' && (
-              <TouchableOpacity
-                className="bg-primary-500 rounded-2xl py-4 items-center"
-                onPress={() => updateStatus.mutate({ id: order.id, status: 'in_progress' })}
-                disabled={isMutating}
-              >
-                {isMutating ? <ActivityIndicator color="#fff" /> : (
-                  <Text className="text-white font-bold text-base">Start Sending POP</Text>
-                )}
-              </TouchableOpacity>
+              </>
             )}
           </View>
         )}
@@ -964,65 +1175,139 @@ Please check your PUBG game and open the app to click *I Received POP — Confir
         {/* ── SUPPLIER ACTIONS ── */}
         {isPopSupplier && !isSeller && (
           <View className="gap-3">
-            {/* Awaiting seller payout */}
-            {order.status === 'verified' && (
-              <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4">
-                <Text className="text-purple-400 font-semibold mb-1">⏳ Awaiting Seller Payout</Text>
-                <Text className="text-surface-300 text-sm leading-relaxed">
-                  The Seller has verified your POP delivery! The Seller will now transfer PKR {supplierNet.toLocaleString()} to your registered payment details and upload the payout proof.
-                </Text>
-              </View>
-            )}
+            {order.isDirectRequest ? (
+              <>
+                {order.status === 'pending_payment' && (
+                  <>
+                    {(!order.sellerPaymentProof || order.sellerPaymentProof.length === 0) ? (
+                      <View className="bg-surface-100 rounded-2xl p-4">
+                        <Text className="text-white font-semibold mb-1">⏳ Waiting for Seller's Payment</Text>
+                        <Text className="text-surface-300 text-xs leading-relaxed">
+                          The seller needs to upload payment proof to proceed.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4">
+                        <Text className="text-yellow-400 font-semibold mb-2">💰 Confirm Payment Received?</Text>
+                        <Text className="text-surface-300 text-xs leading-relaxed mb-4">
+                          Verify the payment screenshot below matches your account balance.
+                        </Text>
+                        <TouchableOpacity
+                          className="bg-yellow-500 rounded-xl py-3.5 items-center justify-center"
+                          onPress={() =>
+                            confirmAction(
+                              'Confirm Payment Received',
+                              'Are you sure you received payment from the seller?',
+                              () => confirmSellerPayment.mutate(order.id),
+                            )
+                          }
+                          disabled={isMutating}
+                        >
+                          {isMutating ? <ActivityIndicator color="#0f172a" /> : (
+                            <Text className="text-slate-950 font-bold text-sm">✓ Confirm Payment Received</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
+                )}
 
-            {/* Payout submitted — supplier verifies receipt */}
-            {order.status === 'payout_submitted' && (
-              <View className="gap-3">
-                <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-1">
-                  <Text className="text-yellow-400 font-semibold mb-1">
-                    💰 Payout Proof Submitted
-                  </Text>
-                  <Text className="text-surface-300 text-sm leading-relaxed">
-                    The Seller has uploaded transaction proof for your payout of PKR {supplierNet.toLocaleString()}.
-                  </Text>
-                  <Text className="text-surface-400 text-xs mt-2">
-                    Review the payout proof and your account details below. Confirm you received the amount to complete the deal.
-                  </Text>
-                </View>
+                {order.status === 'in_progress' && (
+                  <TouchableOpacity
+                    className="bg-primary-500 rounded-2xl py-4 items-center"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/orders/proof-upload',
+                        params: { orderId: order.id },
+                      } as never)
+                    }
+                    disabled={isMutating}
+                  >
+                    <Text className="text-white font-bold text-base">📹 Upload POP Delivery Proof</Text>
+                  </TouchableOpacity>
+                )}
 
-                {/* Show Supplier Payment details panel right here for the Supplier to verify! */}
-                {sellerPayDetails && (
-                  <View className="mb-2">
-                    <Text className="text-white font-semibold mb-2">Your Payment Details used by Seller:</Text>
-                    <PaymentDetailsPanel details={sellerPayDetails} />
+                {order.status === 'proof_submitted' && (
+                  <View className="bg-surface-100 rounded-2xl p-4">
+                    <Text className="text-white font-semibold mb-1">⏳ Awaiting Seller Verification</Text>
+                    <Text className="text-surface-300 text-xs leading-relaxed">
+                      You have submitted the POP delivery proofs. The seller will verify them shortly to complete the deal.
+                    </Text>
                   </View>
                 )}
 
-                {/* Show Payout proof screenshot if uploaded by seller */}
-                {order.supplierPayoutProof && order.supplierPayoutProof.length > 0 && (
-                  <View className="mb-2">
-                    <Text className="text-white font-semibold mb-2">Seller's Payout Proof Screenshot(s):</Text>
-                    {order.supplierPayoutProof.map((url, i) => (
-                      <TouchableOpacity key={i} onPress={() => setFullImageUrl(url)} className="mb-2">
-                        <Image
-                          source={{ uri: url }}
-                          style={{ width: CARD_W, height: CARD_W * 0.56, borderRadius: 16 }}
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
-                    ))}
+                {order.status === 'completed' && (
+                  <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4">
+                    <Text className="text-green-400 font-semibold mb-1">✓ Order Completed</Text>
+                    <Text className="text-surface-300 text-xs leading-relaxed">
+                      This direct request has been completed and marked as verified.
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Awaiting seller payout */}
+                {order.status === 'verified' && (
+                  <View className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4">
+                    <Text className="text-purple-400 font-semibold mb-1">⏳ Awaiting Seller Payout</Text>
+                    <Text className="text-surface-300 text-sm leading-relaxed">
+                      The Seller has verified your POP delivery! The Seller will now transfer PKR {supplierNet.toLocaleString()} to your registered payment details and upload the payout proof.
+                    </Text>
                   </View>
                 )}
 
-                <TouchableOpacity
-                  className="bg-green-600 rounded-2xl py-4 items-center"
-                  onPress={handleSupplierConfirmPayout}
-                  disabled={supplierConfirmPayout.isPending}
-                >
-                  {supplierConfirmPayout.isPending ? <ActivityIndicator color="#fff" /> : (
-                    <Text className="text-white font-bold text-base">✓ Confirm Payment Received</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                {/* Payout submitted — supplier verifies receipt */}
+                {order.status === 'payout_submitted' && (
+                  <View className="gap-3">
+                    <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-1">
+                      <Text className="text-yellow-400 font-semibold mb-1">
+                        💰 Payout Proof Submitted
+                      </Text>
+                      <Text className="text-surface-300 text-sm leading-relaxed">
+                        The Seller has uploaded transaction proof for your payout of PKR {supplierNet.toLocaleString()}.
+                      </Text>
+                      <Text className="text-surface-400 text-xs mt-2">
+                        Review the payout proof and your account details below. Confirm you received the amount to complete the deal.
+                      </Text>
+                    </View>
+
+                    {/* Show Supplier Payment details panel right here for the Supplier to verify! */}
+                    {sellerPayDetails && (
+                      <View className="mb-2">
+                        <Text className="text-white font-semibold mb-2">Your Payment Details used by Seller:</Text>
+                        <PaymentDetailsPanel details={sellerPayDetails} />
+                      </View>
+                    )}
+
+                    {/* Show Payout proof screenshot if uploaded by seller */}
+                    {order.supplierPayoutProof && order.supplierPayoutProof.length > 0 && (
+                      <View className="mb-2">
+                        <Text className="text-white font-semibold mb-2">Seller's Payout Proof Screenshot(s):</Text>
+                        {order.supplierPayoutProof.map((url, i) => (
+                          <TouchableOpacity key={i} onPress={() => setFullImageUrl(url)} className="mb-2">
+                            <Image
+                              source={{ uri: url }}
+                              style={{ width: CARD_W, height: CARD_W * 0.56, borderRadius: 16 }}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      className="bg-green-600 rounded-2xl py-4 items-center"
+                      onPress={handleSupplierConfirmPayout}
+                      disabled={supplierConfirmPayout.isPending}
+                    >
+                      {supplierConfirmPayout.isPending ? <ActivityIndicator color="#fff" /> : (
+                        <Text className="text-white font-bold text-base">✓ Confirm Payment Received</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}

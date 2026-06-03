@@ -17,12 +17,14 @@ import type { Transaction, TransactionType } from '@/shared/types';
 const TYPE_CONFIG: Record<TransactionType, { label: string; color: string; icon: string }> = {
   buyer_payment:   { label: 'Buyer Payment',    color: 'text-green-400',  icon: '💰' },
   supplier_payout: { label: 'Supplier Payout',  color: 'text-red-400',    icon: '💸' },
+  seller_profit:   { label: 'Seller Profit',    color: 'text-primary-400', icon: '✨' },
+  manual:          { label: 'Manual Deal',       color: 'text-yellow-400', icon: '📝' },
   manual_profit:   { label: 'Manual Deal',       color: 'text-yellow-400', icon: '📝' },
   commission:      { label: 'Commission',        color: 'text-surface-300', icon: '🏦' },
 };
 
 function TransactionRow({ txn }: { txn: Transaction }) {
-  const cfg = TYPE_CONFIG[txn.type];
+  const cfg = TYPE_CONFIG[txn.type] || { label: txn.type, color: 'text-white', icon: '⚡' };
   const dateMs =
     typeof txn.date === 'object' && 'seconds' in txn.date
       ? (txn.date as { seconds: number }).seconds * 1000
@@ -32,38 +34,59 @@ function TransactionRow({ txn }: { txn: Transaction }) {
     : '—';
 
   return (
-    <View className="flex-row items-center py-3 border-b border-surface-200">
-      <View className="w-9 h-9 rounded-full bg-surface-200 items-center justify-center mr-3">
-        <Text className="text-base">{cfg.icon}</Text>
-      </View>
-      <View className="flex-1">
-        <Text className="text-white text-sm font-medium" numberOfLines={1}>
-          {txn.description}
-        </Text>
-        <View className="flex-row items-center gap-2 mt-0.5">
-          <Text className={`text-xs ${cfg.color}`}>{cfg.label}</Text>
-          <Text className="text-surface-400 text-xs">·</Text>
-          <Text className="text-surface-400 text-xs">{dateStr}</Text>
-          {txn.isManual && (
-            <>
-              <Text className="text-surface-400 text-xs">·</Text>
-              <Text className="text-yellow-500 text-xs">Manual</Text>
-            </>
-          )}
+    <View className="py-3 border-b border-surface-200">
+      <View className="flex-row items-center">
+        <View className="w-9 h-9 rounded-full bg-surface-200 items-center justify-center mr-3">
+          <Text className="text-base">{cfg.icon}</Text>
+        </View>
+        <View className="flex-1">
+          <Text className="text-white text-sm font-medium" numberOfLines={1}>
+            {txn.description}
+          </Text>
+          <View className="flex-row items-center gap-2 mt-0.5">
+            <Text className={`text-xs ${cfg.color}`}>{cfg.label}</Text>
+            <Text className="text-surface-400 text-xs">·</Text>
+            <Text className="text-surface-400 text-xs">{dateStr}</Text>
+            {txn.isManual && (
+              <>
+                <Text className="text-surface-400 text-xs">·</Text>
+                <Text className="text-yellow-500 text-xs font-medium">Manual</Text>
+              </>
+            )}
+          </View>
+        </View>
+        <View className="items-end ml-2">
+          <Text
+            className={`text-sm font-bold ${
+              txn.profitPKR >= 0 ? 'text-green-400' : 'text-red-400'
+            }`}
+          >
+            {txn.profitPKR >= 0 ? '+' : ''}PKR {txn.profitPKR.toLocaleString()}
+          </Text>
+          <Text className="text-surface-400 text-xs">
+            {txn.paymentMethod ? txn.paymentMethod.replace(/_/g, ' ') : '—'}
+          </Text>
         </View>
       </View>
-      <View className="items-end ml-2">
-        <Text
-          className={`text-sm font-bold ${
-            txn.profitPKR >= 0 ? 'text-green-400' : 'text-red-400'
-          }`}
-        >
-          {txn.profitPKR >= 0 ? '+' : ''}PKR {txn.profitPKR.toLocaleString()}
-        </Text>
-        <Text className="text-surface-400 text-xs">
-          {txn.paymentMethod.replace(/_/g, ' ')}
-        </Text>
-      </View>
+
+      {/* Per-Order Rate Breakdown */}
+      {txn.popAmount !== undefined && (txn.buyerRate !== undefined || txn.supplierRate !== undefined) && (
+        <View className="mt-2 bg-surface-200/40 rounded-xl p-2.5 flex-row justify-between items-center">
+          <Text className="text-surface-400 text-[10px] font-medium">
+            POP: <Text className="text-white">{txn.popAmount.toLocaleString()}</Text>
+          </Text>
+          {txn.buyerRate !== undefined && (
+            <Text className="text-surface-400 text-[10px] font-medium">
+              Buyer Rate: <Text className="text-green-400">PKR {txn.buyerRate}/10k</Text>
+            </Text>
+          )}
+          {txn.supplierRate !== undefined && (
+            <Text className="text-surface-400 text-[10px] font-medium">
+              Supplier Rate: <Text className="text-red-400">PKR {txn.supplierRate}/10k</Text>
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -120,32 +143,44 @@ export default function AnalyticsScreen() {
             />
           }
         >
-          {/* Top 3 summary cards */}
-          <View className="flex-row gap-3 mb-4">
+          {/* Top 4 summary cards */}
+          <View className="flex-row gap-3 mb-3">
             <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-yellow-500/30">
-              <Text className="text-yellow-400 text-xs mb-1">Today</Text>
-              <Text className="text-white text-xl font-bold">
+              <Text className="text-yellow-400 text-xs mb-1">Today's Profit</Text>
+              <Text className="text-white text-lg font-bold">
                 PKR {(data?.today.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-xs mt-1">
+              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
                 {data?.today.transactionCount ?? 0} deals
               </Text>
             </View>
             <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-primary-500/30">
               <Text className="text-primary-400 text-xs mb-1">This Week</Text>
-              <Text className="text-white text-xl font-bold">
+              <Text className="text-white text-lg font-bold">
                 PKR {(data?.thisWeek.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-xs mt-1">
+              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
                 {data?.thisWeek.transactionCount ?? 0} deals
               </Text>
             </View>
+          </View>
+
+          <View className="flex-row gap-3 mb-4">
             <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-green-500/30">
-              <Text className="text-green-400 text-xs mb-1">All Time</Text>
-              <Text className="text-white text-xl font-bold">
+              <Text className="text-green-400 text-xs mb-1">This Month</Text>
+              <Text className="text-white text-lg font-bold">
+                PKR {(data?.thisMonth.totalProfit ?? 0).toLocaleString()}
+              </Text>
+              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
+                {data?.thisMonth.transactionCount ?? 0} deals
+              </Text>
+            </View>
+            <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-purple-500/30">
+              <Text className="text-purple-400 text-xs mb-1">Lifetime Profit</Text>
+              <Text className="text-white text-lg font-bold">
                 PKR {(data?.all.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-xs mt-1">
+              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
                 {data?.all.transactionCount ?? 0} deals
               </Text>
             </View>

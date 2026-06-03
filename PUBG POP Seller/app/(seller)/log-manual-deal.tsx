@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   View,
@@ -19,14 +19,21 @@ import { orderService } from '@/features/orders/services/orderService';
 
 const PAYMENT_METHODS = ['JazzCash', 'EasyPaisa', 'Bank Transfer', 'Cash', 'WhatsApp'];
 
-export default function LogDealScreen() {
+export default function LogManualDealScreen() {
   const { user } = useAuthStore();
   const logTransaction = useLogTransaction();
+  const params = useLocalSearchParams<{
+    popAmount?: string;
+    buyerRate?: string;
+    supplierRate?: string;
+    description?: string;
+    orderId?: string;
+  }>();
 
-  const [popAmount, setPopAmount]       = useState('');
-  const [buyerRate, setBuyerRate]       = useState('');
-  const [supplierRate, setSupplierRate] = useState('');
-  const [description, setDescription]  = useState('');
+  const [popAmount, setPopAmount]       = useState(params.popAmount || '');
+  const [buyerRate, setBuyerRate]       = useState(params.buyerRate || params.supplierRate || '');
+  const [supplierRate, setSupplierRate] = useState(params.supplierRate || '');
+  const [description, setDescription]  = useState(params.description || '');
   const [payMethod, setPayMethod]       = useState('JazzCash');
   const [proofUri, setProofUri]         = useState<string | null>(null);
   const [uploading, setUploading]       = useState(false);
@@ -92,7 +99,7 @@ export default function LogDealScreen() {
       logTransaction.mutate(
         {
           sellerId: user.uid,
-          orderId: null,
+          orderId: params.orderId || null,
           type: 'manual',
           amountPKR: revenue,
           profitPKR: profit,

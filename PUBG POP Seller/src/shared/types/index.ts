@@ -60,6 +60,7 @@ export interface UserProfile extends BaseDocument {
   fcmToken: string | null;
   whatsappNumber?: string | null;
   googleDriveFolder?: string | null;
+  defaultCommissionPer10k?: number;
 }
 
 export type ListingStatus = 'active' | 'expired' | 'sold_out';
@@ -133,6 +134,9 @@ export interface Order extends BaseDocument {
   proofMethod?: 'uploaded' | 'whatsapp';
   popSupplierId?: string | null;
   popSupplierName?: string | null;
+  isDirectRequest?: boolean;
+  sellerPaymentProof?: string[];
+  supplierPaymentConfirmed?: boolean;
 }
 
 export interface Proof extends BaseDocument {
@@ -196,6 +200,9 @@ export interface SellerRequest extends BaseDocument {
   completedAt: FirestoreTimestamp | null;
   buyerOrderId?: string | null;
   buyerPubgId?: string | null;
+  buyerRatePer10k?: number | null;
+  commissionPer10k?: number | null;
+  isDirectRequest?: boolean;
 }
 
 /** Status of a supplier's booking against a SellerRequest */
@@ -205,6 +212,8 @@ export type BookingStatus =
   | 'rejected'      // seller rejected
   | 'in_progress'   // supplier is sending POP
   | 'proof_submitted'
+  | 'verified'      // seller verified proof videos, payout pending
+  | 'payout_submitted' // seller uploaded payout screenshot, awaiting supplier confirmation
   | 'completed';
 
 /** A supplier's booking for a portion of a SellerRequest */
@@ -223,14 +232,19 @@ export interface Booking extends BaseDocument {
   status: BookingStatus;
   /** Proof URL submitted by supplier after sending POP */
   proofUrl: string | null;
+  proofUrls?: string[];
   proofNotes: string | null;
   proofSubmittedAt: FirestoreTimestamp | null;
+  supplierPayoutProof?: string[];
   completedAt: FirestoreTimestamp | null;
+  orderId?: string;
 }
 
 export type TransactionType =
   | 'buyer_payment'
   | 'supplier_payout'
+  | 'seller_profit'
+  | 'manual'
   | 'manual_profit'
   | 'commission';
 
@@ -239,12 +253,16 @@ export interface Transaction {
   sellerId: string;
   /** Linked in-app order ID — null for manual/WhatsApp deals */
   orderId: string | null;
+  buyerOrderId?: string;
+  supplierRequestId?: string;
   type: TransactionType;
   amountPKR: number;
   /** Rate seller charged buyer per 10k POP */
   buyerRate?: number;
+  buyerRatePer10k?: number;
   /** Rate seller paid supplier per 10k POP */
   supplierRate?: number;
+  supplierRatePer10k?: number;
   /** Net profit = buyerRate - supplierRate, or manual entry */
   profitPKR: number;
   description: string;

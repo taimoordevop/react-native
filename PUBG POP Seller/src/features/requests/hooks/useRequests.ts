@@ -65,6 +65,15 @@ export function useRequest(id: string | undefined) {
   });
 }
 
+/** React Query fetch for a linked request by buyerOrderId */
+export function useLinkedRequest(buyerOrderId: string | undefined) {
+  return useQuery({
+    queryKey: [QUERY_KEYS.REQUEST, 'linked', buyerOrderId],
+    queryFn: () => requestService.getByBuyerOrderId(buyerOrderId!),
+    enabled: !!buyerOrderId,
+  });
+}
+
 /** Post a new seller request */
 export function useCreateRequest() {
   const qc = useQueryClient();
@@ -167,11 +176,13 @@ export function useSubmitBookingProof() {
       id,
       proofUrl,
       proofNotes,
+      proofUrls,
     }: {
       id: string;
       proofUrl: string;
       proofNotes: string | null;
-    }) => bookingService.submitProof(id, proofUrl, proofNotes),
+      proofUrls?: string[];
+    }) => bookingService.submitProof(id, proofUrl, proofNotes, proofUrls),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEYS.BOOKINGS] }),
   });
 }

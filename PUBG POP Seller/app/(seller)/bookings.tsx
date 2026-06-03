@@ -16,6 +16,8 @@ import {
   Linking,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -41,37 +43,102 @@ const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bg: s
   in_progress:     { label: 'In Progress', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
   rejected:        { label: 'Rejected', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
   proof_submitted: { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+  verified:        { label: 'POP Verified (Payout Pending)', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+  payout_submitted:{ label: 'Payout Proof Uploaded', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
   completed:       { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
 };
 
 function VideoPlayerWrapper({ proofUrl }: { proofUrl: string }) {
   const videoRef = useRef<Video>(null);
   const [playing, setPlaying] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const optimizedUrl = proofUrl.includes('res.cloudinary.com')
+    ? proofUrl.replace('/video/upload/', '/video/upload/q_auto,vc_h264,f_mp4/')
+    : proofUrl;
+
+  const posterUri = proofUrl.includes('res.cloudinary.com')
+    ? proofUrl.replace('/video/upload/', '/video/upload/f_jpg,so_1/').replace(/\.[^/.]+$/, '.jpg')
+    : undefined;
+
+  const handlePlay = async () => {
+    setPlaying(true);
+    if (videoRef.current) {
+      try {
+        await videoRef.current.playAsync();
+      } catch (err) {
+        console.error('Failed to trigger playAsync:', err);
+      }
+    }
+  };
+
+  const downloadVideo = async () => {
+    try {
+      setDownloading(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync(true);
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'We need storage permission to save the video to your gallery.');
+        setDownloading(false);
+        return;
+      }
+
+      // Download file to local document directory
+      const filename = `POP_Proof_${Date.now()}.mp4`;
+      const localUri = FileSystem.documentDirectory + filename;
+      const { uri } = await FileSystem.downloadAsync(proofUrl, localUri);
+
+      // Save to gallery
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Success ✓', 'Video saved to your gallery.');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Download Failed', 'Could not save the video. Please check your connection.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <View className="bg-black rounded-xl overflow-hidden mb-2 relative aspect-video border border-purple-500/20">
       <Video
         ref={videoRef}
-        source={{ uri: proofUrl }}
+        source={{ uri: optimizedUrl }}
         style={{ width: '100%', height: '100%' }}
         resizeMode={ResizeMode.CONTAIN}
         useNativeControls
         shouldPlay={playing}
         isLooping={false}
+        usePoster={!!posterUri}
+        posterSource={posterUri ? { uri: posterUri } : undefined}
+        posterStyle={{ resizeMode: 'cover' }}
+        progressUpdateIntervalMillis={1000}
         onPlaybackStatusUpdate={(s) => {
           if ('didJustFinish' in s && s.didJustFinish) setPlaying(false);
         }}
       />
       {!playing && (
         <TouchableOpacity
-          onPress={() => setPlaying(true)}
-          className="absolute inset-0 items-center justify-center bg-black/35"
+          onPress={handlePlay}
+          className="absolute inset-0 items-center justify-center bg-black/20"
         >
           <View className="bg-black/60 rounded-full w-14 h-14 items-center justify-center">
-            <Text className="text-white text-xl">▶</Text>
+            <Text className="text-white text-xl ml-1">▶</Text>
           </View>
         </TouchableOpacity>
       )}
+
+      {/* Download Video Button */}
+      <TouchableOpacity
+        onPress={downloadVideo}
+        disabled={downloading}
+        className="absolute top-2 right-2 bg-black/60 rounded-xl px-2.5 py-1.5 flex-row items-center border border-white/10"
+      >
+        {downloading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text className="text-white text-xs font-bold">📥 Save Video</Text>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -162,13 +229,14 @@ export default function SellerBookingsScreen() {
     pending: bookings.filter((b) => b.status === 'pending').length,
     accepted: bookings.filter((b) => b.status === 'accepted').length,
     proof_submitted: bookings.filter((b) => b.status === 'proof_submitted').length,
-    completed: bookings.filter((b) => b.status === 'completed').length,
+    completed: bookings.filter((b) => ['completed', 'verified', 'payout_submitted'].includes(b.status)).length,
     all: bookings.length,
   };
 
   // Filter bookings based on active tab
   const filteredBookings = bookings.filter((b) => {
     if (activeTab === 'all') return true;
+    if (activeTab === 'completed') return ['completed', 'verified', 'payout_submitted'].includes(b.status);
     return b.status === activeTab;
   });
 
@@ -253,40 +321,73 @@ export default function SellerBookingsScreen() {
             )}
 
             {/* Proof Submissions */}
-            {item.status === 'proof_submitted' && item.proofUrl && (
+            {item.status === 'proof_submitted' && (item.proofUrl || (item.proofUrls && item.proofUrls.length > 0)) && (
               <View className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 mb-4">
                 <Text className="text-purple-400 text-xs font-bold mb-2">Supplier POP Proof:</Text>
 
-                {item.proofUrl === 'whatsapp' ? (
-                  <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2 flex-row items-center gap-2">
-                    <Text className="text-xl">💬</Text>
-                    <View className="flex-1">
-                      <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
-                      <Text className="text-surface-400 text-[10px]">
-                        Supplier has sent the video proof directly to your WhatsApp.
-                      </Text>
+                {item.proofUrls && item.proofUrls.length > 0 ? (
+                  item.proofUrls.map((url, i) => (
+                    <View key={i} className="mb-3 border-b border-surface-200/20 pb-3 last:border-b-0 last:pb-0">
+                      <Text className="text-purple-400 text-[10px] font-semibold mb-1">Attachment #{i + 1}:</Text>
+                      {url === 'whatsapp' ? (
+                        <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex-row items-center gap-2">
+                          <Text className="text-xl">💬</Text>
+                          <View className="flex-1">
+                            <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
+                            <Text className="text-surface-400 text-[10px]">
+                              Supplier has sent the video proof directly to your WhatsApp.
+                            </Text>
+                          </View>
+                        </View>
+                      ) : url.includes('drive.google.com') ? (
+                        <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                          <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
+                          <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
+                            {url}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => Linking.openURL(url)}
+                            className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
+                          >
+                            <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <VideoPlayerWrapper proofUrl={url} />
+                      )}
                     </View>
-                  </View>
-                ) : item.proofUrl.includes('drive.google.com') ? (
-                  <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-2">
-                    <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
-                    <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
-                      {item.proofUrl}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(item.proofUrl!)}
-                      className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
-                    >
-                      <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
-                    </TouchableOpacity>
-                  </View>
+                  ))
                 ) : (
-                  // Render Cloudinary Video Proof player
-                  <VideoPlayerWrapper proofUrl={item.proofUrl} />
+                  item.proofUrl === 'whatsapp' ? (
+                    <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2 flex-row items-center gap-2">
+                      <Text className="text-xl">💬</Text>
+                      <View className="flex-1">
+                        <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
+                        <Text className="text-surface-400 text-[10px]">
+                          Supplier has sent the video proof directly to your WhatsApp.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : item.proofUrl?.includes('drive.google.com') ? (
+                    <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-2">
+                      <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
+                      <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
+                        {item.proofUrl}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(item.proofUrl!)}
+                        className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
+                      >
+                        <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : item.proofUrl ? (
+                    <VideoPlayerWrapper proofUrl={item.proofUrl} />
+                  ) : null
                 )}
 
                 {item.proofNotes && (
-                  <Text className="text-surface-300 text-xs leading-relaxed bg-surface-100 p-2.5 rounded-lg border border-surface-200/30">
+                  <Text className="text-surface-300 text-xs leading-relaxed bg-surface-100 p-2.5 rounded-lg border border-surface-200/30 mt-2">
                     <Text className="font-semibold text-purple-400">Notes: </Text>
                     {item.proofNotes}
                   </Text>
@@ -307,6 +408,22 @@ export default function SellerBookingsScreen() {
                 </View>
               )}
             </View>
+
+            {/* Direct Order Shortcut */}
+            {item.orderId && (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/orders/[id]',
+                    params: { id: item.orderId },
+                  } as never)
+                }
+                className="bg-primary-500/10 border border-primary-500/30 rounded-xl py-3.5 items-center justify-center flex-row gap-2 mb-4"
+              >
+                <Text className="text-primary-400 text-base">📦</Text>
+                <Text className="text-primary-400 font-bold text-sm">View Linked Order & Action Flow</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Action Buttons */}
             <View className="flex-row gap-2 mt-2">

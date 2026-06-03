@@ -37,16 +37,21 @@ export default function PostRequestScreen() {
   const [destinationPubgId, setDestinationPubgId] = useState('');
   const [deliveryDeadline, setDeliveryDeadline] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isDirectRequest, setIsDirectRequest] = useState(false);
 
   // Prefill states when navigated contextually from a buyer order
   useEffect(() => {
     if (params.buyerOrderId) {
       setAudience('supplier');
       if (params.popAmount) setPopAmount(params.popAmount);
-      if (params.rate) setRate(params.rate);
+      
+      const defaultComm = user?.defaultCommissionPer10k ?? 40;
+      const initialSupplierRate = params.rate ? Math.max(0, Number(params.rate) - defaultComm) : 0;
+      setRate(String(initialSupplierRate));
+
       if (params.buyerPubgId) setDestinationPubgId(params.buyerPubgId);
     }
-  }, [params.buyerOrderId, params.popAmount, params.rate, params.buyerPubgId]);
+  }, [params.buyerOrderId, params.popAmount, params.rate, params.buyerPubgId, user?.defaultCommissionPer10k]);
 
   const popNum = Number(popAmount.replace(/,/g, ''));
   const rateNum = Number(rate);
@@ -56,7 +61,15 @@ export default function PostRequestScreen() {
   const validate = (): string | null => {
     if (!popNum || popNum < 5000) return 'Minimum POP amount is 5,000';
     if (!rateNum || rateNum < 100) return 'Rate must be at least PKR 100 per 10k';
-    if (rateNum <= COMMISSION_PER_10K) return `Rate must be above commission (${COMMISSION_PER_10K}/10k)`;
+    
+    if (params.buyerOrderId) {
+      const buyerRate = Number(params.rate || 0);
+      if (rateNum >= buyerRate) {
+        return `Supplier rate (${rateNum}) cannot be equal to or higher than the buyer rate (${buyerRate})`;
+      }
+    } else if (!isDirectRequest) {
+      if (rateNum <= COMMISSION_PER_10K) return `Rate must be above commission (${COMMISSION_PER_10K}/10k)`;
+    }
     return null;
   };
 
@@ -64,6 +77,9 @@ export default function PostRequestScreen() {
     const err = validate();
     if (err) { setError(err); return; }
     if (!user) return;
+
+    const buyerRateNum = params.rate ? Number(params.rate) : null;
+    const commissionPer10kNum = buyerRateNum !== null ? Math.max(0, buyerRateNum - rateNum) : null;
 
     createRequest(
       {
@@ -77,6 +93,9 @@ export default function PostRequestScreen() {
         deliveryDeadline: audience === 'supplier' ? (deliveryDeadline.trim() || null) : null,
         buyerOrderId: params.buyerOrderId || null,
         buyerPubgId: params.buyerPubgId || null,
+        buyerRatePer10k: buyerRateNum,
+        commissionPer10k: commissionPer10kNum,
+        isDirectRequest: isDirectRequest,
       },
       {
         onSuccess: () => {
@@ -171,6 +190,34 @@ export default function PostRequestScreen() {
           {/* Supplier-only: destination PUBG ID + deadline */}
           {audience === 'supplier' && (
             <>
+              {!params.buyerOrderId && (
+                <View className="mb-5 bg-surface-100 border border-surface-200 rounded-2xl p-4 flex-row items-center justify-between">
+                  <View className="flex-1 mr-3">
+                    <Text className="text-white font-bold text-sm">Direct Request (No Buyer)</Text>
+                    <Text className="text-surface-400 text-xs mt-1">
+                      Check this if this POP is for personal use / offline deals (no platform buyer involved).
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsDirectRequest(!isDirectRequest)}
+                    className={`w-12 h-7 rounded-full p-1 justify-center ${
+                      isDirectRequest ? 'bg-green-500 items-end' : 'bg-slate-700 items-start'
+                    }`}
+                  >
+                    <View className="w-5 h-5 rounded-full bg-white" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {isDirectRequest && (
+                <View className="mb-5 bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4">
+                  <Text className="text-blue-400 text-xs font-semibold mb-1">ℹ️ Direct Request Mode Enabled</Text>
+                  <Text className="text-surface-300 text-xs leading-4">
+                    Platform commission is 0. You will manually upload payment proof directly to the supplier inside the order screen once they book it.
+                  </Text>
+                </View>
+              )}
+
               <View className="mb-5">
                 <Text className="text-surface-300 text-sm mb-2">
                   Your PUBG ID (suppliers send POP here) <Text className="text-red-400">*</Text>
@@ -232,7 +279,7 @@ export default function PostRequestScreen() {
           {/* Rate */}
           <View className="mb-5">
             <Text className="text-surface-300 text-sm mb-2">
-              Your Rate (PKR / 10k POP) <Text className="text-red-400">*</Text>
+              {params.buyerOrderId ? 'Supplier Rate (PKR / 10k POP)' : 'Your Rate (PKR / 10k POP)'} <Text className="text-red-400">*</Text>
             </Text>
             <TextInput
               className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
@@ -243,10 +290,36 @@ export default function PostRequestScreen() {
               keyboardType="numeric"
               autoCorrect={false}
             />
-            {rateNum > COMMISSION_PER_10K && (
-              <Text className="text-green-400/80 text-xs mt-1">
-                Supplier earns PKR {rateNum - COMMISSION_PER_10K}/10k · Commission: PKR {COMMISSION_PER_10K}/10k
-              </Text>
+            {params.buyerOrderId ? (
+              <View className="mt-3 bg-surface-200 rounded-xl p-3 border border-surface-300/40">
+                <Text className="text-white text-xs font-semibold mb-2">Commission Breakdown</Text>
+                <View className="flex-row justify-between mb-1.5">
+                  <Text className="text-surface-400 text-xs">Buyer Rate:</Text>
+                  <Text className="text-white text-xs font-medium">PKR {Number(params.rate || 0)} /10k</Text>
+                </View>
+                <View className="flex-row justify-between mb-1.5">
+                  <Text className="text-surface-400 text-xs">Your Profit Margin (Commission):</Text>
+                  <Text className="text-green-400 text-xs font-bold">
+                    PKR {Math.max(0, Number(params.rate || 0) - rateNum)} /10k
+                  </Text>
+                </View>
+                <View className="flex-row justify-between pt-1.5 border-t border-surface-300/20">
+                  <Text className="text-surface-400 text-xs">Supplier Will Get:</Text>
+                  <Text className="text-yellow-400 text-xs font-bold">PKR {rateNum} /10k</Text>
+                </View>
+              </View>
+            ) : isDirectRequest ? (
+              rateNum > 0 && (
+                <Text className="text-blue-400 text-xs mt-1">
+                  Supplier will receive PKR {rateNum}/10k POP. Platform commission is PKR 0.
+                </Text>
+              )
+            ) : (
+              rateNum > COMMISSION_PER_10K && (
+                <Text className="text-green-400/80 text-xs mt-1">
+                  Supplier earns PKR {rateNum - COMMISSION_PER_10K}/10k · Commission: PKR {COMMISSION_PER_10K}/10k
+                </Text>
+              )
             )}
           </View>
 

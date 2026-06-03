@@ -36,8 +36,8 @@ service cloud.firestore {
 
     // ── Users collection ──────────────────────────────────────────────────────
     match /users/{uid} {
-      // Single-document get: owner can always read their own doc; admins can read all
-      allow get: if isOwner(uid) || isAdmin();
+      // Single-document get: allow any authenticated user so buyers and sellers can view details/payouts
+      allow get: if isAuth();
 
       // List/query: allow public access so the client can check username/email uniqueness.
       // App code only reads displayName and email for this purpose.
@@ -53,7 +53,8 @@ service cloud.firestore {
           'displayName', 'photoURL', 'bio',
           'pubgId', 'pubgNickname', 'pubgServer',
           'fcmToken', 'onboardingCompleted', 'updatedAt',
-          'role', 'paymentDetails', 'whatsappNumber', 'googleDriveFolder'
+          'role', 'paymentDetails', 'whatsappNumber', 'googleDriveFolder',
+          'defaultCommissionPer10k'
         ]);
 
       // Admins can update any user field (for moderation / manual role assignment)
@@ -83,6 +84,7 @@ service cloud.firestore {
       allow get: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.supplierId == request.auth.uid ||
+         ('popSupplierId' in resource.data && resource.data.popSupplierId == request.auth.uid) ||
          isAdmin());
 
       // List/query: allow any authenticated user — app-side where clauses
@@ -99,6 +101,7 @@ service cloud.firestore {
       allow update: if isAuth() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.supplierId == request.auth.uid ||
+         ('popSupplierId' in resource.data && resource.data.popSupplierId == request.auth.uid) ||
          isAdmin());
 
       allow delete: if false;
@@ -175,9 +178,23 @@ service cloud.firestore {
       allow read: if isAuth() &&
         (resource.data.sellerId == request.auth.uid || isAdmin());
 
-      // Seller can create their own transaction records
-      allow create: if isAuth() &&
-        request.resource.data.sellerId == request.auth.uid;
+      // Seller can create their own transaction records, or a linked order participant can create them on order completion
+      allow create: if isAuth() && (
+        request.resource.data.sellerId == request.auth.uid ||
+        (
+          'orderId' in request.resource.data &&
+          request.resource.data.orderId != null &&
+          request.resource.data.orderId != "" &&
+          exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+          (
+            get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.supplierId == request.auth.uid ||
+            (
+              'popSupplierId' in get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data &&
+              get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.popSupplierId == request.auth.uid
+            )
+          )
+        )
+      );
 
       // Transactions are immutable once created (no updates or deletes)
       allow update, delete: if false;

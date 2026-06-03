@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/features/auth/providers/AuthProvider';
 import { orderService } from '@/features/orders/services/orderService';
 
-type Mode = 'buyer_payment' | 'seller_payout';
+type Mode = 'buyer_payment' | 'seller_payout' | 'seller_payment';
 
 const MODE_CONFIG: Record<Mode, { title: string; subtitle: string; btnLabel: string; color: string }> = {
   buyer_payment: {
@@ -29,6 +29,12 @@ const MODE_CONFIG: Record<Mode, { title: string; subtitle: string; btnLabel: str
     subtitle: 'Screenshot(s) of payout sent to supplier. This completes the order.',
     btnLabel: 'Submit Payout & Complete',
     color: 'bg-green-600',
+  },
+  seller_payment: {
+    title: 'Upload Payment to Supplier',
+    subtitle: 'Screenshot(s) of payment sent to the supplier. The supplier will confirm receipt.',
+    btnLabel: 'Submit Payment Proof',
+    color: 'bg-indigo-600',
   },
 };
 
@@ -103,6 +109,13 @@ export default function PaymentProofUploadScreen() {
         Alert.alert(
           'Proof Submitted ✓',
           'Your payment screenshots have been submitted. The seller will confirm receipt shortly.',
+          [{ text: 'OK', onPress: () => router.back() }],
+        );
+      } else if (mode === 'seller_payment') {
+        await orderService.submitSellerPaymentProof(orderId, uploadedUrls);
+        Alert.alert(
+          'Proof Submitted ✓',
+          'Your payment screenshots have been submitted to the supplier. They will confirm receipt shortly.',
           [{ text: 'OK', onPress: () => router.back() }],
         );
       } else {
