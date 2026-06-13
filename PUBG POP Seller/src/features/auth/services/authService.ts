@@ -13,7 +13,7 @@ import type { UserProfile } from '@/shared/types';
 
 export const authService = {
   /** Register a new user. Creates a Firestore document with default values. */
-  async signUp(email: string, password: string, displayName: string): Promise<UserProfile> {
+  async signUp(email: string, password: string, displayName: string, pubgNickname?: string): Promise<UserProfile> {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName });
 
@@ -26,7 +26,7 @@ export const authService = {
       role: 'buyer', // default role — changed during onboarding
       paymentDetails: null,
       pubgId: null,
-      pubgNickname: null,
+      pubgNickname: pubgNickname || null,
       pubgServer: null,
       bio: null,
       reputation: 0,

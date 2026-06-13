@@ -93,6 +93,15 @@ export function useUpdateRequestStatus() {
   });
 }
 
+/** Archive a request */
+export function useArchiveRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => requestService.archive(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEYS.REQUESTS] }),
+  });
+}
+
 // ── Booking hooks ──────────────────────────────────────────────────────────────
 
 /** Real-time listener for bookings on a specific request */

@@ -292,7 +292,17 @@ export default function ProfileScreen() {
     <SafeAreaView className="flex-1 bg-surface">
       {/* eslint-disable-next-line react-native/no-inline-styles */}
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }}>
-        <Text className="text-white text-2xl font-bold mb-6">Profile</Text>
+        <View className="flex-row items-center mb-6">
+          {role === 'admin' && (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="mr-3 p-2 bg-surface-100 rounded-xl"
+            >
+              <Text className="text-purple-400 font-bold text-sm">← Back</Text>
+            </TouchableOpacity>
+          )}
+          <Text className="text-white text-2xl font-bold">Profile</Text>
+        </View>
 
         {/* ── Avatar + Identity Card ── */}
         <View className="bg-surface-100 rounded-2xl p-4 mb-4">

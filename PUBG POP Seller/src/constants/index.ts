@@ -1,4 +1,4 @@
-export const APP_NAME = 'POP Seller';
+export const APP_NAME = 'PUBG MART';
 export const APP_VERSION = '1.0.0';
 
 export const COLLECTION = {
@@ -13,6 +13,7 @@ export const COLLECTION = {
   CHATS: 'chats',
   MESSAGES: 'messages',
   TRANSACTIONS: 'transactions',
+  SELLER_APPROVALS: 'sellerApprovals',
 } as const;
 
 export const ORDER_STATUS = {

@@ -22,6 +22,7 @@ const POP_PRESETS = [10000, 25000, 50000, 100000, 250000, 500000];
 export default function PostRequestScreen() {
   const { user } = useAuthStore();
   const { mutate: createRequest, isPending } = useCreateRequest();
+  const defaultComm = user?.defaultCommissionPer10k ?? COMMISSION_PER_10K;
 
   const params = useLocalSearchParams<{
     buyerOrderId?: string;
@@ -45,18 +46,17 @@ export default function PostRequestScreen() {
       setAudience('supplier');
       if (params.popAmount) setPopAmount(params.popAmount);
       
-      const defaultComm = user?.defaultCommissionPer10k ?? 40;
       const initialSupplierRate = params.rate ? Math.max(0, Number(params.rate) - defaultComm) : 0;
       setRate(String(initialSupplierRate));
 
       if (params.buyerPubgId) setDestinationPubgId(params.buyerPubgId);
     }
-  }, [params.buyerOrderId, params.popAmount, params.rate, params.buyerPubgId, user?.defaultCommissionPer10k]);
+  }, [params.buyerOrderId, params.popAmount, params.rate, params.buyerPubgId, defaultComm]);
 
   const popNum = Number(popAmount.replace(/,/g, ''));
   const rateNum = Number(rate);
   const totalPKR = popNum && rateNum ? Math.round((popNum / 10000) * rateNum) : 0;
-  const supplierPays = popNum && rateNum ? Math.round((popNum / 10000) * (rateNum - COMMISSION_PER_10K)) : 0;
+  const supplierPays = popNum && rateNum ? Math.round((popNum / 10000) * (rateNum - defaultComm)) : 0;
 
   const validate = (): string | null => {
     if (!popNum || popNum < 5000) return 'Minimum POP amount is 5,000';
@@ -68,7 +68,7 @@ export default function PostRequestScreen() {
         return `Supplier rate (${rateNum}) cannot be equal to or higher than the buyer rate (${buyerRate})`;
       }
     } else if (!isDirectRequest) {
-      if (rateNum <= COMMISSION_PER_10K) return `Rate must be above commission (${COMMISSION_PER_10K}/10k)`;
+      if (rateNum <= defaultComm) return `Rate must be above commission (${defaultComm}/10k)`;
     }
     return null;
   };
@@ -315,9 +315,9 @@ export default function PostRequestScreen() {
                 </Text>
               )
             ) : (
-              rateNum > COMMISSION_PER_10K && (
+              rateNum > defaultComm && (
                 <Text className="text-green-400/80 text-xs mt-1">
-                  Supplier earns PKR {rateNum - COMMISSION_PER_10K}/10k · Commission: PKR {COMMISSION_PER_10K}/10k
+                  Supplier earns PKR {rateNum - defaultComm}/10k · Commission: PKR {defaultComm}/10k
                 </Text>
               )
             )}

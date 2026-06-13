@@ -163,6 +163,16 @@ export default function SellerDashboard() {
       {/* eslint-disable-next-line react-native/no-inline-styles */}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
 
+        {/* Verification Pending Banner */}
+        {user?.sellerApprovalStatus === 'pending' && (
+          <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-4">
+            <Text className="text-yellow-400 font-bold mb-1">⏳ Verification Pending</Text>
+            <Text className="text-surface-300 text-sm leading-5">
+              Your Seller verification request is currently under review by our admin team. Other Seller features will be unlocked once approved.
+            </Text>
+          </View>
+        )}
+
         {/* View Analytics Card */}
         <TouchableOpacity
           className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-4 flex-row items-center"

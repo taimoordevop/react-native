@@ -14,6 +14,7 @@ import { useAuthStore } from '@/features/auth/store/authStore';
 import {
   useSellerRequests,
   useUpdateRequestStatus,
+  useArchiveRequest,
 } from '@/features/requests/hooks/useRequests';
 import type { SellerRequest } from '@/shared/types';
 
@@ -40,9 +41,11 @@ const STATUS_BG: Record<string, string> = {
 function RequestCard({
   request,
   onCancel,
+  onArchive,
 }: {
   request: SellerRequest;
   onCancel: () => void;
+  onArchive: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -101,13 +104,20 @@ function RequestCard({
             </View>
           )}
 
-          {/* Cancel button */}
-          {['open', 'partially_booked'].includes(request.status) && (
+          {/* Cancel or Remove button */}
+          {['open', 'partially_booked', 'fully_booked', 'in_progress'].includes(request.status) ? (
             <TouchableOpacity
               onPress={onCancel}
               className="mt-2 py-2.5 items-center rounded-xl border border-red-500/30 bg-red-500/5"
             >
-              <Text className="text-red-400 text-xs font-semibold">Cancel Request</Text>
+              <Text className="text-red-400 text-xs font-semibold">Cancel / Close Request</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={onArchive}
+              className="mt-2 py-2.5 items-center rounded-xl border border-red-500/30 bg-red-500/5"
+            >
+              <Text className="text-red-400 text-xs font-semibold">Remove from List</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -120,9 +130,11 @@ export default function SellerBuyerRequestsScreen() {
   const { user } = useAuthStore();
   const { requests, isLoading } = useSellerRequests(user?.uid);
   const { mutate: updateRequest } = useUpdateRequestStatus();
+  const { mutate: archiveRequest } = useArchiveRequest();
   const [filter, setFilter] = useState<FilterKey>('active');
 
   const filtered = requests.filter((r) => {
+    if (r.archived === true) return false;
     if (r.targetAudience !== 'buyer') return false;
     if (filter === 'active') return ['open', 'partially_booked', 'fully_booked', 'in_progress'].includes(r.status);
     if (filter === 'completed') return ['completed', 'cancelled'].includes(r.status);
@@ -136,6 +148,17 @@ export default function SellerBuyerRequestsScreen() {
         text: 'Cancel Request',
         style: 'destructive',
         onPress: () => updateRequest({ id, status: 'cancelled' }),
+      },
+    ]);
+  };
+
+  const handleArchive = (id: string) => {
+    Alert.alert('Remove Request', 'Are you sure you want to remove this request from your view? It will be archived and hidden.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => archiveRequest(id),
       },
     ]);
   };
@@ -206,6 +229,7 @@ export default function SellerBuyerRequestsScreen() {
             <RequestCard
               request={item}
               onCancel={() => handleCancel(item.id)}
+              onArchive={() => handleArchive(item.id)}
             />
           )}
         />

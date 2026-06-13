@@ -52,16 +52,6 @@ const ROLES: RoleCard[] = [
     iconColor: 'text-yellow-400',
     emoji: '⚡',
   },
-  {
-    role: 'admin',
-    title: 'Admin',
-    description: 'Platform management — manage users, resolve disputes, and oversee all transactions.',
-    perks: ['View all users', 'Manage disputes', 'Platform oversight'],
-    borderColor: 'border-purple-500',
-    iconBg: 'bg-purple-500/20',
-    iconColor: 'text-purple-400',
-    emoji: '🛡️',
-  },
 ];
 
 export default function RoleSelectScreen() {
@@ -95,7 +85,7 @@ export default function RoleSelectScreen() {
         <View className="mb-8 mt-4">
           <Text className="text-white text-3xl font-bold mb-2">Choose your role</Text>
           <Text className="text-surface-300 text-base">
-            Select how you&apos;ll use POP Seller. You can contact support to change this later.
+            Select how you&apos;ll use PUBG MART. You can contact support to change this later.
           </Text>
         </View>
 

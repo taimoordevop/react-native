@@ -54,8 +54,12 @@ service cloud.firestore {
           'pubgId', 'pubgNickname', 'pubgServer',
           'fcmToken', 'onboardingCompleted', 'updatedAt',
           'role', 'paymentDetails', 'whatsappNumber', 'googleDriveFolder',
-          'defaultCommissionPer10k'
-        ]);
+          'defaultCommissionPer10k', 'sellerApprovalStatus', 'cnicNumber',
+          'cnicSelfieUrl'
+        ]) && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sellerApprovalStatus']) ||
+          request.resource.data.sellerApprovalStatus in ['pending', 'none']
+        );
 
       // Admins can update any user field (for moderation / manual role assignment)
       allow update: if isAdmin();
@@ -198,6 +202,24 @@ service cloud.firestore {
 
       // Transactions are immutable once created (no updates or deletes)
       allow update, delete: if false;
+    }
+
+    // ── Seller Approvals collection ───────────────────────────────────────────
+    match /sellerApprovals/{requestId} {
+      allow get: if isAuth() && (request.auth.uid == requestId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAuth() && request.auth.uid == requestId && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ── Notifications collection ──────────────────────────────────────────────
+    match /notifications/{notificationId} {
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuth() && resource.data.userId == request.auth.uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if false;
     }
 
     // ── Deny all other collections by default ─────────────────────────────────

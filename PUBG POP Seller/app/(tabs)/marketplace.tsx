@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +16,7 @@ import {
   useSupplierListings,
   useSetListingStatus,
 } from '@/features/marketplace/hooks/useListings';
-import { ListingCard } from '@/shared/components/ListingCard';
+import { ListingCard, LoadingScreen } from '@/shared/components';
 import type { Listing } from '@/shared/types';
 
 type TabKey = 'browse' | 'mine';
@@ -124,9 +123,7 @@ export default function MarketplaceScreen() {
 
       {/* ── Content ── */}
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#6366f1" size="large" />
-        </View>
+        <LoadingScreen variant="market" />
       ) : (
         <FlatList
           data={listData}

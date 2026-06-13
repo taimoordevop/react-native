@@ -61,6 +61,22 @@ export interface UserProfile extends BaseDocument {
   whatsappNumber?: string | null;
   googleDriveFolder?: string | null;
   defaultCommissionPer10k?: number;
+  sellerApprovalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  cnicNumber?: string;
+  cnicSelfieUrl?: string;
+  approvalNotes?: string;
+}
+
+export interface SellerApprovalRequest extends BaseDocument {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  cnicNumber: string;
+  cnicSelfieUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
 }
 
 export type ListingStatus = 'active' | 'expired' | 'sold_out';
@@ -203,6 +219,7 @@ export interface SellerRequest extends BaseDocument {
   buyerRatePer10k?: number | null;
   commissionPer10k?: number | null;
   isDirectRequest?: boolean;
+  archived?: boolean;
 }
 
 /** Status of a supplier's booking against a SellerRequest */

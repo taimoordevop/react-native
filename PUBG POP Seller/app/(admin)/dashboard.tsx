@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { COLLECTION } from '@/constants';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { authService } from '@/features/auth/services/authService';
 
@@ -20,7 +23,9 @@ const ADMIN_MENU = [
   { label: 'Dashboard', icon: '⊞', href: '/(admin)/dashboard' },
   { label: 'Manage Users', icon: '👥', href: '/(admin)/users' },
   { label: 'All Orders', icon: '📋', href: '/(admin)/all-orders' },
+  { label: 'Seller Approvals', icon: '🛡️', href: '/(admin)/seller-approvals' },
   { label: 'Disputes', icon: '⚠️', href: '/(admin)/disputes' },
+  { label: 'Profile', icon: '👤', href: '/(admin)/profile' },
 ];
 
 function AdminDrawer({
@@ -145,6 +150,57 @@ function AdminDrawer({
 export default function AdminDashboard() {
   const { user } = useAuthStore();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalOrders: 0,
+    revenueMTD: 0,
+    openDisputes: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Listen to users count
+    const qUsers = query(collection(db, COLLECTION.USERS));
+    const unsubUsers = onSnapshot(qUsers, (snap) => {
+      setStats((prev) => ({ ...prev, totalUsers: snap.size }));
+    }, (err) => console.error('[AdminDashboard] Users stats error:', err));
+
+    // Listen to orders stats
+    const qOrders = query(collection(db, COLLECTION.ORDERS));
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
+      let revenueMTD = 0;
+      let openDisputes = 0;
+      const now = new Date();
+
+      snap.forEach((doc) => {
+        const order = doc.data();
+        if (order.status === 'disputed') {
+          openDisputes++;
+        }
+        if (order.status === 'completed') {
+          const completedAt = order.completedAt?.toDate?.() || 
+                              (order.completedAt?.seconds ? new Date(order.completedAt.seconds * 1000) : null) ||
+                              (order.completedAt instanceof Date ? order.completedAt : null);
+          if (completedAt && completedAt.getMonth() === now.getMonth() && completedAt.getFullYear() === now.getFullYear()) {
+            revenueMTD += order.commission || 0;
+          }
+        }
+      });
+
+      setStats((prev) => ({
+        ...prev,
+        totalOrders: snap.size,
+        revenueMTD,
+        openDisputes,
+      }));
+      setLoading(false);
+    }, (err) => console.error('[AdminDashboard] Orders stats error:', err));
+
+    return () => {
+      unsubUsers();
+      unsubOrders();
+    };
+  }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -178,10 +234,10 @@ export default function AdminDashboard() {
         {/* Stats grid */}
         <View className="flex-row flex-wrap gap-3 mb-5">
           {[
-            { label: 'Total Users', value: '—', color: 'text-primary-400', bg: 'bg-primary-500/10 border-primary-500/20' },
-            { label: 'Total Orders', value: '—', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
-            { label: 'Revenue (MTD)', value: 'PKR —', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-            { label: 'Open Disputes', value: '—', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+            { label: 'Total Users', value: loading ? '—' : stats.totalUsers.toString(), color: 'text-primary-400', bg: 'bg-primary-500/10 border-primary-500/20' },
+            { label: 'Total Orders', value: loading ? '—' : stats.totalOrders.toString(), color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+            { label: 'Revenue (MTD)', value: loading ? 'PKR —' : `PKR ${stats.revenueMTD.toLocaleString()}`, color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
+            { label: 'Open Disputes', value: loading ? '—' : stats.openDisputes.toString(), color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
           ].map(({ label, value, color, bg }) => (
             <View
               key={label}
@@ -214,8 +270,7 @@ export default function AdminDashboard() {
         <View className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4">
           <Text className="text-purple-400 font-semibold mb-1">Admin Panel</Text>
           <Text className="text-surface-300 text-sm leading-5">
-            Full stats (users, orders, revenue) will populate once live data is connected.
-            Use the menu (☰) or Quick Links above to navigate.
+            Real-time platform statistics are connected. Use the menu (☰) or Quick Links above to manage users, orders, disputes, and view your profile.
           </Text>
         </View>
       </ScrollView>

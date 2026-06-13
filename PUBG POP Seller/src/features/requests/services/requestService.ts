@@ -80,6 +80,14 @@ export const requestService = {
     });
   },
 
+  /** Archive a request */
+  async archive(id: string): Promise<void> {
+    await updateDoc(doc(db, COLLECTION.REQUESTS, id), {
+      archived: true,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
   /** Get single request by ID */
   async getById(id: string): Promise<SellerRequest | null> {
     const snap = await getDoc(doc(db, COLLECTION.REQUESTS, id));

@@ -20,6 +20,8 @@ export default function AdminLayout() {
       <Stack.Screen name="users" />
       <Stack.Screen name="all-orders" />
       <Stack.Screen name="disputes" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="seller-approvals" />
     </Stack>
   );
 }

@@ -1,23 +1,55 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import {
+  useFonts,
+  Orbitron_900Black,
+  Orbitron_700Bold,
+} from '@expo-google-fonts/orbitron';
+import {
+  Rajdhani_400Regular,
+  Rajdhani_600SemiBold,
+  Rajdhani_700Bold,
+} from '@expo-google-fonts/rajdhani';
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+} from '@expo-google-fonts/dm-sans';
 
 import '../src/global.css';
 import { AuthProvider } from '@/features/auth/providers/AuthProvider';
 import { queryClient } from '@/lib/queryClient';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
-
-SplashScreen.preventAutoHideAsync();
+import { SplashScreenComponent } from '@/shared/components/SplashScreen';
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Orbitron_900Black,
+    Orbitron_700Bold,
+    Rajdhani_400Regular,
+    Rajdhani_600SemiBold,
+    Rajdhani_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+  });
+
+  const [splashFinished, setSplashFinished] = useState(false);
+
   useEffect(() => {
-    console.log('[NAV] RootLayout mounted — hiding splash screen');
-    SplashScreen.hideAsync();
+    console.log('[NAV] RootLayout mounted');
+    const timer = setTimeout(() => {
+      setSplashFinished(true);
+    }, 5000);
+    return () => clearTimeout(timer);
   }, []);
+
+  if (!fontsLoaded || !splashFinished) {
+    return <SplashScreenComponent />;
+  }
 
   return (
     <ErrorBoundary>

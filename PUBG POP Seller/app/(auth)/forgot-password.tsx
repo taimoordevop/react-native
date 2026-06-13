@@ -45,9 +45,19 @@ export default function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <Text className="text-4xl font-bold text-white mb-2">Reset password</Text>
-        <Text className="text-surface-300 text-base mb-10">
+        <Text className="text-surface-300 text-base mb-6">
           Enter your email to receive a reset link
         </Text>
+
+        {/* Facebook Social Info Banner */}
+        <View className="bg-primary-500/10 border border-primary-500/30 rounded-xl p-4 mb-8">
+          <Text className="text-[#D4A017] text-xs font-semibold uppercase tracking-wider mb-1">
+            Facebook Log In
+          </Text>
+          <Text className="text-surface-300 text-xs leading-relaxed">
+            If you signed up with Facebook, please use the Facebook button on the login screen to log in.
+          </Text>
+        </View>
 
         {sent ? (
           <View className="bg-green-500/20 border border-green-500 rounded-xl p-4 mb-6">

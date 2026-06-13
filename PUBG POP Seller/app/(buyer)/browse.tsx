@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   TextInput,
   Modal,
   ScrollView,
@@ -16,6 +15,7 @@ import { useAuth } from '@/features/auth/providers/AuthProvider';
 import { useOpenBuyerRequests } from '@/features/requests/hooks/useRequests';
 import { useCreateDirectOrder } from '@/features/orders/hooks/useOrders';
 import { calcTotalPKR } from '@/features/orders/services/orderService';
+import { LoadingScreen } from '@/shared/components';
 import type { SellerRequest } from '@/shared/types';
 
 function RequestCard({
@@ -178,9 +178,7 @@ export default function BuyerBrowseScreen() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#0ea5e9" size="large" />
-        </View>
+        <LoadingScreen variant="market" />
       ) : (
         <FlatList
           data={filtered}
