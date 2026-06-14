@@ -38,6 +38,23 @@ const STATUS_BG: Record<string, string> = {
   cancelled:         'bg-surface-200/50 border-surface-300/30',
 };
 
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function RequestCard({
   request,
   onCancel,
@@ -50,7 +67,7 @@ function RequestCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <View className="bg-surface-100 rounded-2xl p-4 mb-3 border border-surface-200">
+    <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.2)', borderRadius: 4 }} className="p-4 mb-3">
       <TouchableOpacity onPress={() => setExpanded((v) => !v)} activeOpacity={0.95}>
         {/* Header row */}
         <View className="flex-row justify-between items-start mb-2">
@@ -63,7 +80,7 @@ function RequestCard({
             </Text>
           </View>
           <View className="items-end gap-1">
-            <View className={`px-2 py-0.5 rounded-full border ${STATUS_BG[request.status]}`}>
+            <View className={`px-2 py-0.5 rounded border ${STATUS_BG[request.status]}`}>
               <Text className={`text-[10px] font-bold capitalize ${STATUS_COLOR[request.status]}`}>
                 {request.status.replace(/_/g, ' ')}
               </Text>
@@ -75,12 +92,13 @@ function RequestCard({
         </View>
 
         {/* Progress bar */}
-        <View className="bg-surface-200 rounded-full h-1.5 mb-2 overflow-hidden">
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} className="rounded-full h-1.5 mb-2 overflow-hidden">
           <View
-            className="bg-yellow-500 h-full rounded-full"
             style={{
+              backgroundColor: '#D4A017',
               width: `${Math.max(0, Math.min(100, (1 - request.remainingAmount / request.totalPopAmount) * 100))}%`,
             }}
+            className="h-full rounded-full"
           />
         </View>
 
@@ -88,7 +106,7 @@ function RequestCard({
           <Text className="text-surface-400 text-[10px]">
             Created: {request.createdAt?.toDate?.()?.toLocaleDateString() ?? 'Recent'}
           </Text>
-          <Text className="text-yellow-400 text-xs font-semibold">
+          <Text className="text-[#D4A017] text-xs font-semibold">
             {expanded ? '▲ Hide Details' : '▼ View Details'}
           </Text>
         </View>
@@ -96,10 +114,10 @@ function RequestCard({
 
       {/* Expanded Details */}
       {expanded && (
-        <View className="mt-3 pt-3 border-t border-surface-200/50">
+        <View style={{ borderTopColor: 'rgba(255,255,255,0.06)' }} className="mt-3 pt-3 border-t">
           {request.notes && (
-            <View className="mb-2 bg-surface-200/40 p-2.5 rounded-xl border border-surface-200">
-              <Text className="text-surface-300 text-xs font-bold mb-0.5">Notes:</Text>
+            <View style={{ backgroundColor: 'rgba(30,41,59,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="mb-2 p-2.5">
+              <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-[10px] font-bold mb-0.5 uppercase">Notes:</Text>
               <Text className="text-white text-xs">{request.notes}</Text>
             </View>
           )}
@@ -108,16 +126,32 @@ function RequestCard({
           {['open', 'partially_booked', 'fully_booked', 'in_progress'].includes(request.status) ? (
             <TouchableOpacity
               onPress={onCancel}
-              className="mt-2 py-2.5 items-center rounded-xl border border-red-500/30 bg-red-500/5"
+              style={{
+                borderWidth: 1,
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                borderRadius: 2,
+                paddingVertical: 10,
+                alignItems: 'center',
+              }}
+              className="mt-2"
             >
-              <Text className="text-red-400 text-xs font-semibold">Cancel / Close Request</Text>
+              <Text style={{ letterSpacing: 1 }} className="text-red-400 text-xs font-bold uppercase">Cancel / Close Request</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               onPress={onArchive}
-              className="mt-2 py-2.5 items-center rounded-xl border border-red-500/30 bg-red-500/5"
+              style={{
+                borderWidth: 1,
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                borderRadius: 2,
+                paddingVertical: 10,
+                alignItems: 'center',
+              }}
+              className="mt-2"
             >
-              <Text className="text-red-400 text-xs font-semibold">Remove from List</Text>
+              <Text style={{ letterSpacing: 1 }} className="text-red-400 text-xs font-bold uppercase">Remove from List</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -164,23 +198,33 @@ export default function SellerBuyerRequestsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      {/* Background Overlay */}
+      <TacticalGrid />
+
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
-        <TouchableOpacity onPress={() => router.replace('/(seller)/dashboard' as never)} className="mr-3 p-2 bg-surface-100 rounded-lg">
-          <Text className="text-yellow-500 font-bold text-base">← Back</Text>
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="flex-row items-center px-4 py-3 bg-[#090d16]">
+        <TouchableOpacity onPress={() => router.replace('/(seller)/dashboard' as never)} className="mr-3 p-1">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-sm font-bold uppercase">← BACK</Text>
         </TouchableOpacity>
-        <Text className="text-white text-lg font-bold flex-1">Buyer Requests</Text>
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold flex-1 uppercase">BUYER REQUESTS</Text>
         <TouchableOpacity
-          className="bg-yellow-500 rounded-xl px-3.5 py-2"
+          style={{
+            borderWidth: 1.5,
+            borderColor: '#D4A017',
+            borderRadius: 2,
+            backgroundColor: 'rgba(212, 160, 23, 0.15)',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}
           onPress={() => router.push('/(seller)/post-request' as never)}
         >
-          <Text className="text-slate-950 text-xs font-black">+ New Request</Text>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 10, letterSpacing: 1 }} className="uppercase">+ New Request</Text>
         </TouchableOpacity>
       </View>
 
       {/* Filter tabs */}
-      <View className="flex-row gap-2 px-4 py-3 border-b border-surface-200/40">
+      <View style={{ borderBottomColor: 'rgba(255,255,255,0.06)' }} className="flex-row gap-2 px-4 py-3 border-b bg-[#090d16]">
         {([
           { key: 'active' as FilterKey, label: 'Active' },
           { key: 'completed' as FilterKey, label: 'Completed' },
@@ -189,11 +233,21 @@ export default function SellerBuyerRequestsScreen() {
           <TouchableOpacity
             key={f.key}
             onPress={() => setFilter(f.key)}
-            className={`rounded-full px-4 py-2 border ${
-              filter === f.key ? 'bg-yellow-500 border-yellow-400' : 'bg-surface-100 border-surface-200'
-            }`}
+            style={{
+              borderWidth: 1,
+              borderColor: filter === f.key ? '#D4A017' : 'rgba(255,255,255,0.08)',
+              backgroundColor: filter === f.key ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+              borderRadius: 4,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
           >
-            <Text className={`text-xs font-bold ${filter === f.key ? 'text-slate-950' : 'text-surface-300'}`}>
+            <Text style={{
+              color: filter === f.key ? '#D4A017' : '#cbd5e1',
+              fontSize: 11,
+              fontWeight: 'bold',
+              letterSpacing: 1,
+            }} className="uppercase">
               {f.label}
             </Text>
           </TouchableOpacity>
@@ -202,8 +256,8 @@ export default function SellerBuyerRequestsScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#f59e0b" size="large" />
-          <Text className="text-surface-400 text-xs mt-2">Loading buyer requests...</Text>
+          <ActivityIndicator color="#D4A017" size="large" />
+          <Text style={{ letterSpacing: 1 }} className="text-surface-400 text-xxs mt-2 uppercase">Loading buyer requests...</Text>
         </View>
       ) : (
         <FlatList
@@ -213,15 +267,23 @@ export default function SellerBuyerRequestsScreen() {
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center pt-20 px-8">
               <Text className="text-4xl mb-3">📭</Text>
-              <Text className="text-white text-base font-bold mb-2">No buyer requests found</Text>
-              <Text className="text-surface-400 text-sm text-center">
+              <Text style={{ letterSpacing: 1.5 }} className="text-white text-base font-bold mb-2 uppercase">No Requests Found</Text>
+              <Text className="text-surface-400 text-xs text-center leading-relaxed">
                 Create a Buyer Request to offer popularity packages directly to prospective buyers in the app.
               </Text>
               <TouchableOpacity
-                className="bg-yellow-500 rounded-xl px-6 py-3 mt-6"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: '#D4A017',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  marginTop: 24,
+                }}
                 onPress={() => router.push('/(seller)/post-request' as never)}
               >
-                <Text className="text-slate-950 font-bold">Post Buyer Request</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, letterSpacing: 1.5 }} className="uppercase">Post Buyer Request</Text>
               </TouchableOpacity>
             </View>
           }

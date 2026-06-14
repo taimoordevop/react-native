@@ -16,6 +16,34 @@ import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { profileService } from '@/features/profile/services/profileService';
 
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CornerReticles() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+      <View style={{ position: 'absolute', top: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', top: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+    </View>
+  );
+}
+
 export default function PubgSetupScreen() {
   const [pubgId, setPubgId] = useState('');
   const [pubgNickname, setPubgNickname] = useState('');
@@ -26,7 +54,6 @@ export default function PubgSetupScreen() {
   const [error, setError] = useState<string | null>(null);
   const { user, setUser, setOnboardingCompleted } = useAuthStore();
 
-  // Pre-fill fields if user is loaded (e.g. from Google/Facebook metadata)
   useEffect(() => {
     if (user) {
       if (user.displayName) {
@@ -40,7 +67,6 @@ export default function PubgSetupScreen() {
     }
   }, [user]);
 
-  // Real-time unique username checking hook
   useEffect(() => {
     const name = username.trim();
     if (!name) {
@@ -52,7 +78,6 @@ export default function PubgSetupScreen() {
       return;
     }
 
-    // If it matches their own current name, it is already valid
     if (user && name === user.displayName) {
       setUsernameError(null);
       return;
@@ -102,7 +127,6 @@ export default function PubgSetupScreen() {
       setLoading(true);
       setError(null);
       
-      // Persist Username (displayName), PUBG details and mark onboarding as complete in Firestore
       await profileService.update(user.uid, {
         displayName: username.trim(),
         pubgId: pubgId.trim(),
@@ -110,7 +134,6 @@ export default function PubgSetupScreen() {
         onboardingCompleted: true,
       });
 
-      // Update local Zustand store
       const updatedUser = { 
         ...user, 
         displayName: username.trim(),
@@ -121,7 +144,6 @@ export default function PubgSetupScreen() {
       setUser(updatedUser);
       setOnboardingCompleted();
 
-      // Navigate to role-specific dashboard
       const role = updatedUser.role;
       if (role === 'admin') router.replace('/(admin)/dashboard' as never);
       else if (role === 'seller') router.replace('/(auth)/seller-approval' as never);
@@ -135,45 +157,47 @@ export default function PubgSetupScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      <TacticalGrid />
+      <CornerReticles />
+
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* eslint-disable-next-line react-native/no-inline-styles */}
         <ScrollView contentContainerStyle={{ padding: 24, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-
           {/* Back button */}
           <TouchableOpacity
             className="mb-6 mt-2 self-start"
             onPress={() => router.back()}
           >
-            <Text className="text-primary-400 text-sm">← Back</Text>
+            <Text className="text-[#D4A017] text-sm font-bold uppercase">← Back</Text>
           </TouchableOpacity>
 
           {/* Header */}
-          <View className="mb-8">
-            <Text className="text-white text-3xl font-bold mb-2">Set up PUBG profile</Text>
-            <Text className="text-surface-300 text-base">
+          <View className="mb-6">
+            <Text className="text-white text-2xl font-bold uppercase mb-2">Set up PUBG profile</Text>
+            <Text className="text-surface-300 text-xs leading-relaxed">
               Your PUBG ID and nickname help buyers and suppliers identify you in-game.
             </Text>
           </View>
 
           {/* Info card */}
-          <View className="bg-primary-500/10 border border-primary-500/30 rounded-xl p-4 mb-8">
-            <Text className="text-primary-300 text-sm font-semibold mb-1">Where to find your PUBG ID?</Text>
-            <Text className="text-primary-400/80 text-xs">
+          <View style={{ backgroundColor: 'rgba(212,160,23,0.06)', borderWidth: 1, borderColor: 'rgba(212,160,23,0.25)', borderRadius: 4 }} className="p-4 mb-6">
+            <Text className="text-[#D4A017] text-xs font-bold uppercase mb-1">Where to find your PUBG ID?</Text>
+            <Text className="text-surface-300 text-[10px] uppercase font-medium leading-relaxed">
               Open PUBG Mobile → Tap your avatar → Your numeric ID is shown below your nickname.
             </Text>
           </View>
 
           {/* Username field */}
           <View className="mb-5">
-            <Text className="text-surface-300 text-sm mb-2">
+            <Text className="text-surface-300 text-xs uppercase font-bold mb-2">
               Username <Text className="text-red-400">*</Text>
             </Text>
             <TextInput
-              className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+              style={{ backgroundColor: 'rgba(30, 41, 59, 0.25)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 2 }}
+              className="text-white px-4 py-3 text-sm"
               value={username}
               onChangeText={(v) => {
                 setUsername(v);
@@ -186,24 +210,25 @@ export default function PubgSetupScreen() {
               maxLength={20}
             />
             {usernameChecking && (
-              <Text className="text-[#D4A017] text-xs mt-1">Checking availability...</Text>
+              <Text className="text-[#D4A017] text-[10px] uppercase font-bold mt-1.5">Checking availability...</Text>
             )}
             {!usernameChecking && usernameError && (
-              <Text className="text-red-400 text-xs mt-1">{usernameError}</Text>
+              <Text className="text-red-400 text-[10px] uppercase font-bold mt-1.5">{usernameError}</Text>
             )}
             {!usernameChecking && !usernameError && username.trim().length >= 3 && (
-              <Text className="text-green-400 text-xs mt-1">✓ Username is available</Text>
+              <Text className="text-green-400 text-[10px] uppercase font-bold mt-1.5">✓ Username is available</Text>
             )}
-            <Text className="text-surface-400 text-xs mt-1">Your unique display name in PUBG POP</Text>
+            <Text className="text-surface-400 text-[10px] uppercase font-medium mt-1">Your unique display name in PUBG POP</Text>
           </View>
 
           {/* PUBG ID field */}
           <View className="mb-5">
-            <Text className="text-surface-300 text-sm mb-2">
+            <Text className="text-surface-300 text-xs uppercase font-bold mb-2">
               PUBG ID <Text className="text-red-400">*</Text>
             </Text>
             <TextInput
-              className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+              style={{ backgroundColor: 'rgba(30, 41, 59, 0.25)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 2 }}
+              className="text-white px-4 py-3 text-sm"
               value={pubgId}
               onChangeText={(v) => {
                 setPubgId(v);
@@ -216,16 +241,17 @@ export default function PubgSetupScreen() {
               autoCorrect={false}
               maxLength={20}
             />
-            <Text className="text-surface-400 text-xs mt-1">Numeric ID from your PUBG profile</Text>
+            <Text className="text-surface-400 text-[10px] uppercase font-medium mt-1">Numeric ID from your PUBG profile</Text>
           </View>
 
           {/* PUBG Nickname field */}
           <View className="mb-6">
-            <Text className="text-surface-300 text-sm mb-2">
+            <Text className="text-surface-300 text-xs uppercase font-bold mb-2">
               PUBG Nickname <Text className="text-red-400">*</Text>
             </Text>
             <TextInput
-              className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+              style={{ backgroundColor: 'rgba(30, 41, 59, 0.25)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 2 }}
+              className="text-white px-4 py-3 text-sm"
               value={pubgNickname}
               onChangeText={(v) => {
                 setPubgNickname(v);
@@ -237,30 +263,37 @@ export default function PubgSetupScreen() {
               autoCorrect={false}
               maxLength={30}
             />
-            <Text className="text-surface-400 text-xs mt-1">Your in-game display name</Text>
+            <Text className="text-surface-400 text-[10px] uppercase font-medium mt-1">Your in-game display name</Text>
           </View>
 
           {/* Error */}
           {error && (
-            <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-4 mb-4">
-              <Text className="text-red-400 text-sm">{error}</Text>
+            <View className="bg-red-500/10 border border-red-500/30 rounded px-4 py-3 mb-4">
+              <Text className="text-red-400 text-xs font-bold uppercase">{error}</Text>
             </View>
           )}
 
           {/* Finish button */}
           <TouchableOpacity
-            className={`rounded-xl py-4 items-center ${loading ? 'bg-surface-200' : 'bg-primary-500'}`}
+            style={{
+              borderWidth: 1.5,
+              borderColor: '#D4A017',
+              backgroundColor: 'rgba(212,160,23,0.15)',
+              borderRadius: 2,
+              paddingVertical: 15,
+              alignItems: 'center',
+            }}
             onPress={handleFinish}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#D4A017" />
             ) : (
-              <Text className="text-white font-semibold text-base">Finish Setup</Text>
+              <Text className="text-[#D4A017] font-bold text-xs uppercase letter-spacing-[1]">Finish Setup</Text>
             )}
           </TouchableOpacity>
 
-          <Text className="text-surface-400 text-xs text-center mt-4">
+          <Text className="text-surface-400 text-[10px] uppercase font-medium text-center mt-4">
             You can update these details later from your profile.
           </Text>
         </ScrollView>

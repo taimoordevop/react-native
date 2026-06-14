@@ -37,16 +37,33 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'all', label: 'All', icon: '📋' },
 ];
 
-const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bg: string }> = {
-  pending:         { label: 'Pending Approval', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-  accepted:        { label: 'Active Delivery', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-  in_progress:     { label: 'In Progress', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-  rejected:        { label: 'Rejected', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
-  proof_submitted: { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-  verified:        { label: 'POP Verified (Payout Pending)', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
-  payout_submitted:{ label: 'Payout Proof Uploaded', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
-  completed:       { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bg: string; border: string }> = {
+  pending:         { label: 'Pending Approval', color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
+  accepted:        { label: 'Active Delivery', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  in_progress:     { label: 'In Progress', color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+  rejected:        { label: 'Rejected', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+  proof_submitted: { label: 'Proof Submitted', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+  verified:        { label: 'POP Verified (Payout Pending)', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
+  payout_submitted:{ label: 'Payout Proof Uploaded', color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+  completed:       { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
 };
+
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
 
 function VideoPlayerWrapper({ proofUrl }: { proofUrl: string }) {
   const videoRef = useRef<Video>(null);
@@ -99,7 +116,7 @@ function VideoPlayerWrapper({ proofUrl }: { proofUrl: string }) {
   };
 
   return (
-    <View className="bg-black rounded-xl overflow-hidden mb-2 relative aspect-video border border-purple-500/20">
+    <View className="bg-black rounded overflow-hidden mb-2 relative aspect-video border border-purple-500/20">
       <Video
         ref={videoRef}
         source={{ uri: optimizedUrl }}
@@ -131,12 +148,13 @@ function VideoPlayerWrapper({ proofUrl }: { proofUrl: string }) {
       <TouchableOpacity
         onPress={downloadVideo}
         disabled={downloading}
-        className="absolute top-2 right-2 bg-black/60 rounded-xl px-2.5 py-1.5 flex-row items-center border border-white/10"
+        style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderStyle: 'solid', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 4 }}
+        className="absolute top-2 right-2 px-2.5 py-1.5 flex-row items-center"
       >
         {downloading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text className="text-white text-xs font-bold">📥 Save Video</Text>
+          <Text className="text-white text-[10px] font-bold uppercase">📥 Save Video</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -242,10 +260,10 @@ export default function SellerBookingsScreen() {
 
   const renderBookingCard = ({ item }: { item: Booking }) => {
     const isExpanded = expandedId === item.id;
-    const cfg = STATUS_CONFIG[item.status] || { label: item.status, color: 'text-white', bg: 'bg-surface-200' };
+    const cfg = STATUS_CONFIG[item.status] || { label: item.status, color: 'text-white', bg: 'bg-surface-200', border: 'border-surface-300' };
 
     return (
-      <View className="bg-surface-100 rounded-2xl mb-3 border border-surface-200 overflow-hidden">
+      <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.2)', borderRadius: 4 }} className="mb-3 overflow-hidden">
         <TouchableOpacity
           onPress={() => setExpandedId(isExpanded ? null : item.id)}
           activeOpacity={0.9}
@@ -253,8 +271,8 @@ export default function SellerBookingsScreen() {
         >
           {/* Header Status Row */}
           <View className="flex-row items-center justify-between mb-3">
-            <View className={`px-2.5 py-1 rounded-full border ${cfg.bg}`}>
-              <Text className={`text-xs font-bold capitalize ${cfg.color}`}>
+            <View className={`px-2.5 py-1 rounded border ${cfg.bg} ${cfg.border}`}>
+              <Text className={`text-[10px] font-bold capitalize ${cfg.color}`}>
                 {cfg.label}
               </Text>
             </View>
@@ -268,7 +286,7 @@ export default function SellerBookingsScreen() {
             <Text className="text-white text-xl font-bold">
               {item.bookedAmount.toLocaleString()} POP
             </Text>
-            <Text className="text-yellow-500 font-semibold text-sm">
+            <Text className="text-[#D4A017] font-semibold text-sm">
               Supplier: {item.supplierName}
             </Text>
           </View>
@@ -287,12 +305,12 @@ export default function SellerBookingsScreen() {
 
           {/* Quick indicators */}
           {!isExpanded && (
-            <View className="mt-3 pt-2 border-t border-surface-200/50 flex-row justify-between items-center">
-              <Text className="text-surface-400 text-xs">▼ Tap to see actions & proof details</Text>
+            <View style={{ borderTopColor: 'rgba(255,255,255,0.06)' }} className="mt-3 pt-2 border-t flex-row justify-between items-center">
+              <Text className="text-surface-400 text-xxs uppercase">▼ Tap to see actions & proof details</Text>
               {item.status === 'proof_submitted' && (
-                <View className="bg-purple-500/20 px-2 py-0.5 rounded-md flex-row items-center gap-1">
+                <View style={{ backgroundColor: 'rgba(168,85,247,0.1)', borderWidth: 1, borderColor: 'rgba(168,85,247,0.3)', borderRadius: 4 }} className="px-2 py-0.5 flex-row items-center gap-1">
                   <View className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                  <Text className="text-purple-400 text-[10px] font-bold">VERIFY PROOF</Text>
+                  <Text className="text-purple-400 text-[9px] font-bold">VERIFY PROOF</Text>
                 </View>
               )}
             </View>
@@ -301,20 +319,27 @@ export default function SellerBookingsScreen() {
 
         {/* Expanded View */}
         {isExpanded && (
-          <View className="bg-surface-200/40 p-4 border-t border-surface-200">
+          <View style={{ borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(30, 41, 59, 0.45)' }} className="p-4 border-t">
             {/* Attached Buyer PUBG ID Info */}
             {item.buyerPubgId && (
-              <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4">
-                <Text className="text-blue-400 text-xs font-semibold mb-1">POP Target (Buyer PUBG ID):</Text>
+              <View style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.3)', borderRadius: 4 }} className="p-3 mb-4">
+                <Text style={{ letterSpacing: 1 }} className="text-blue-400 text-[10px] font-bold uppercase mb-1">POP Target (Buyer PUBG ID):</Text>
                 <View className="flex-row items-center justify-between">
                   <Text className="text-white font-bold text-base" selectable>
                     {item.buyerPubgId}
                   </Text>
                   <TouchableOpacity
                     onPress={() => handleCopyId(item.buyerPubgId!, 'Buyer PUBG ID')}
-                    className="bg-blue-500/20 px-3 py-1.5 rounded-lg border border-blue-500/30"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: 'rgba(59, 130, 246, 0.3)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      borderRadius: 2,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                    }}
                   >
-                    <Text className="text-blue-400 text-xs font-bold">📋 Copy ID</Text>
+                    <Text style={{ letterSpacing: 1 }} className="text-blue-400 text-[10px] font-bold uppercase">📋 Copy ID</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -322,34 +347,41 @@ export default function SellerBookingsScreen() {
 
             {/* Proof Submissions */}
             {item.status === 'proof_submitted' && (item.proofUrl || (item.proofUrls && item.proofUrls.length > 0)) && (
-              <View className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 mb-4">
-                <Text className="text-purple-400 text-xs font-bold mb-2">Supplier POP Proof:</Text>
+              <View style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)', borderRadius: 4 }} className="p-3 mb-4">
+                <Text style={{ letterSpacing: 1 }} className="text-purple-400 text-[10px] font-bold uppercase mb-2">Supplier POP Proof:</Text>
 
                 {item.proofUrls && item.proofUrls.length > 0 ? (
                   item.proofUrls.map((url, i) => (
-                    <View key={i} className="mb-3 border-b border-surface-200/20 pb-3 last:border-b-0 last:pb-0">
-                      <Text className="text-purple-400 text-[10px] font-semibold mb-1">Attachment #{i + 1}:</Text>
+                    <View key={i} style={{ borderBottomColor: 'rgba(255,255,255,0.06)' }} className="mb-3 border-b pb-3 last:border-b-0 last:pb-0">
+                      <Text className="text-purple-400 text-[9px] font-bold mb-1 uppercase">Attachment #{i + 1}:</Text>
                       {url === 'whatsapp' ? (
-                        <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex-row items-center gap-2">
+                        <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.06)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.2)', borderRadius: 4 }} className="p-3 flex-row items-center gap-2">
                           <Text className="text-xl">💬</Text>
                           <View className="flex-1">
-                            <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
-                            <Text className="text-surface-400 text-[10px]">
+                            <Text style={{ letterSpacing: 1 }} className="text-green-400 text-xs font-bold uppercase">Sent on WhatsApp</Text>
+                            <Text className="text-surface-400 text-xxs">
                               Supplier has sent the video proof directly to your WhatsApp.
                             </Text>
                           </View>
                         </View>
                       ) : url.includes('drive.google.com') ? (
-                        <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                          <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
-                          <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
+                        <View style={{ backgroundColor: 'rgba(59, 130, 246, 0.06)', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.2)', borderRadius: 4 }} className="p-3">
+                          <Text style={{ letterSpacing: 1 }} className="text-blue-400 text-xs font-bold uppercase mb-1">📁 Google Drive Video Proof</Text>
+                          <Text className="text-surface-300 text-xxs mb-2" numberOfLines={1}>
                             {url}
                           </Text>
                           <TouchableOpacity
                             onPress={() => Linking.openURL(url)}
-                            className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
+                            style={{
+                              borderWidth: 1.5,
+                              borderColor: '#3b82f6',
+                              borderRadius: 2,
+                              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                              paddingVertical: 10,
+                              alignItems: 'center',
+                            }}
                           >
-                            <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
+                            <Text className="text-white text-xs font-bold uppercase">🔗 Open Google Drive Video</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -359,26 +391,33 @@ export default function SellerBookingsScreen() {
                   ))
                 ) : (
                   item.proofUrl === 'whatsapp' ? (
-                    <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2 flex-row items-center gap-2">
+                    <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.06)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.2)', borderRadius: 4 }} className="p-3 mb-2 flex-row items-center gap-2">
                       <Text className="text-xl">💬</Text>
                       <View className="flex-1">
-                        <Text className="text-green-400 text-xs font-bold">Sent on WhatsApp</Text>
-                        <Text className="text-surface-400 text-[10px]">
+                        <Text style={{ letterSpacing: 1 }} className="text-green-400 text-xs font-bold uppercase">Sent on WhatsApp</Text>
+                        <Text className="text-surface-400 text-xxs">
                           Supplier has sent the video proof directly to your WhatsApp.
                         </Text>
                       </View>
                     </View>
                   ) : item.proofUrl?.includes('drive.google.com') ? (
-                    <View className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-2">
-                      <Text className="text-blue-400 text-xs font-bold mb-1">📁 Google Drive Video Proof</Text>
-                      <Text className="text-surface-300 text-xs mb-2" numberOfLines={1}>
+                    <View style={{ backgroundColor: 'rgba(59, 130, 246, 0.06)', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.2)', borderRadius: 4 }} className="p-3 mb-2">
+                      <Text style={{ letterSpacing: 1 }} className="text-blue-400 text-xs font-bold uppercase mb-1">📁 Google Drive Video Proof</Text>
+                      <Text className="text-surface-300 text-xxs mb-2" numberOfLines={1}>
                         {item.proofUrl}
                       </Text>
                       <TouchableOpacity
                         onPress={() => Linking.openURL(item.proofUrl!)}
-                        className="bg-blue-500 rounded-xl py-2.5 items-center justify-center flex-row gap-1.5"
+                        style={{
+                          borderWidth: 1.5,
+                          borderColor: '#3b82f6',
+                          borderRadius: 2,
+                          backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                          paddingVertical: 10,
+                          alignItems: 'center',
+                        }}
                       >
-                        <Text className="text-white text-xs font-bold">🔗 Open Google Drive Video</Text>
+                        <Text className="text-white text-xs font-bold uppercase">🔗 Open Google Drive Video</Text>
                       </TouchableOpacity>
                     </View>
                   ) : item.proofUrl ? (
@@ -387,7 +426,7 @@ export default function SellerBookingsScreen() {
                 )}
 
                 {item.proofNotes && (
-                  <Text className="text-surface-300 text-xs leading-relaxed bg-surface-100 p-2.5 rounded-lg border border-surface-200/30 mt-2">
+                  <Text style={{ backgroundColor: 'rgba(30,41,59,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="text-surface-300 text-xs leading-relaxed p-2.5 mt-2">
                     <Text className="font-semibold text-purple-400">Notes: </Text>
                     {item.proofNotes}
                   </Text>
@@ -396,15 +435,15 @@ export default function SellerBookingsScreen() {
             )}
 
             {/* Timestamps */}
-            <View className="space-y-1 mb-4">
-              <View className="flex-row justify-between">
-                <Text className="text-surface-400 text-xs">Request ID:</Text>
-                <Text className="text-surface-300 text-xs font-mono">{item.requestId.slice(0, 10)}...</Text>
+            <View className="mb-4">
+              <View className="flex-row justify-between mb-1">
+                <Text className="text-surface-400 text-xxs uppercase">Request ID:</Text>
+                <Text className="text-surface-300 text-xxs font-mono">{item.requestId.slice(0, 12)}...</Text>
               </View>
               {item.completedAt && (
                 <View className="flex-row justify-between">
-                  <Text className="text-surface-400 text-xs">Completed:</Text>
-                  <Text className="text-surface-300 text-xs">{(item.completedAt as any)?.toDate?.()?.toLocaleString() ?? 'Recent'}</Text>
+                  <Text className="text-surface-400 text-xxs uppercase">Completed:</Text>
+                  <Text className="text-surface-300 text-xxs">{(item.completedAt as any)?.toDate?.()?.toLocaleString() ?? 'Recent'}</Text>
                 </View>
               )}
             </View>
@@ -418,10 +457,21 @@ export default function SellerBookingsScreen() {
                     params: { id: item.orderId },
                   } as never)
                 }
-                className="bg-primary-500/10 border border-primary-500/30 rounded-xl py-3.5 items-center justify-center flex-row gap-2 mb-4"
+                style={{
+                  borderWidth: 1,
+                  borderColor: 'rgba(212, 160, 23, 0.3)',
+                  backgroundColor: 'rgba(212, 160, 23, 0.05)',
+                  borderRadius: 4,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                }}
+                className="mb-4"
               >
-                <Text className="text-primary-400 text-base">📦</Text>
-                <Text className="text-primary-400 font-bold text-sm">View Linked Order & Action Flow</Text>
+                <Text className="text-[#D4A017] text-base">📦</Text>
+                <Text style={{ letterSpacing: 1.5 }} className="text-[#D4A017] font-bold text-xs uppercase">View Linked Order & Action Flow</Text>
               </TouchableOpacity>
             )}
 
@@ -431,20 +481,38 @@ export default function SellerBookingsScreen() {
                 <>
                   <TouchableOpacity
                     onPress={() => handleBookingAction(item, 'rejected')}
-                    className="flex-1 bg-red-500/10 border border-red-500/30 rounded-xl py-3.5 items-center justify-center"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: 'rgba(239, 68, 68, 0.3)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                      borderRadius: 2,
+                      paddingVertical: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    className="flex-1"
                     disabled={updating}
                   >
-                    <Text className="text-red-400 font-semibold text-sm">❌ Reject</Text>
+                    <Text style={{ letterSpacing: 1 }} className="text-red-400 font-bold text-xs uppercase">Reject</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
                       setBuyerPubgId('');
                       setAcceptTarget(item);
                     }}
-                    className="flex-[2] bg-yellow-500 rounded-xl py-3.5 items-center justify-center"
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: '#D4A017',
+                      borderRadius: 2,
+                      backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                      paddingVertical: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    className="flex-[2]"
                     disabled={updating}
                   >
-                    <Text className="text-slate-950 font-bold text-sm">✓ Accept & Attach PUBG</Text>
+                    <Text style={{ letterSpacing: 1 }} className="text-white font-bold text-xs uppercase">✓ Accept & Attach PUBG</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -452,16 +520,25 @@ export default function SellerBookingsScreen() {
               {item.status === 'proof_submitted' && (
                 <TouchableOpacity
                   onPress={() => handleBookingAction(item, 'completed')}
-                  className="flex-1 bg-green-600 rounded-xl py-3.5 items-center justify-center"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: '#22c55e',
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  className="flex-1"
                   disabled={updating}
                 >
-                  <Text className="text-white font-bold text-sm">✓ Verify & Complete Deal</Text>
+                  <Text style={{ letterSpacing: 1 }} className="text-white font-bold text-xs uppercase">✓ Verify & Complete Deal</Text>
                 </TouchableOpacity>
               )}
 
               {item.status === 'accepted' && (
-                <View className="flex-1 bg-surface-100 p-3 rounded-xl border border-surface-200">
-                  <Text className="text-center text-surface-400 text-xs">
+                <View style={{ backgroundColor: 'rgba(30,41,59,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="flex-1 p-3">
+                  <Text style={{ letterSpacing: 0.5 }} className="text-center text-surface-400 text-xxs uppercase">
                     ⏳ Waiting for supplier to send POP and upload delivery proof.
                   </Text>
                 </View>
@@ -474,20 +551,23 @@ export default function SellerBookingsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      {/* Background Overlay */}
+      <TacticalGrid />
+
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
-        <TouchableOpacity onPress={() => router.back()} className="mr-3 p-2 bg-surface-100 rounded-lg">
-          <Text className="text-yellow-500 font-bold text-base">←</Text>
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="flex-row items-center px-4 py-3 bg-[#090d16]">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-sm font-bold uppercase">← BACK</Text>
         </TouchableOpacity>
-        <Text className="text-white text-lg font-bold flex-1">Supplier Bookings</Text>
-        <View className="bg-yellow-500/10 border border-yellow-500/30 px-3 py-1 rounded-full">
-          <Text className="text-yellow-500 text-xs font-bold">Seller Desk</Text>
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold flex-1 uppercase">SUPPLIER BOOKINGS</Text>
+        <View style={{ borderWidth: 1, borderColor: '#D4A017', backgroundColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="px-3 py-1">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-[10px] font-bold uppercase">Seller Desk</Text>
         </View>
       </View>
 
       {/* Tabs */}
-      <View className="px-4 py-3 border-b border-surface-200/50">
+      <View style={{ borderBottomColor: 'rgba(255,255,255,0.06)' }} className="px-4 py-3 border-b bg-[#090d16]">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
           <View className="flex-row gap-2">
             {TABS.map((tab) => {
@@ -498,30 +578,46 @@ export default function SellerBookingsScreen() {
                 <TouchableOpacity
                   key={tab.key}
                   onPress={() => setActiveTab(tab.key)}
-                  className={`rounded-full px-4 py-2.5 flex-row items-center gap-1.5 border ${
-                    isActive
-                      ? 'bg-yellow-500 border-yellow-400'
-                      : 'bg-surface-100 border-surface-200'
-                  }`}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: isActive ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: isActive ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                    borderRadius: 4,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                  }}
+                  className="flex-row items-center gap-1.5"
                 >
                   <Text className="text-xs">{tab.icon}</Text>
                   <Text
-                    className={`text-xs font-bold ${
-                      isActive ? 'text-slate-950' : 'text-surface-300'
-                    }`}
+                    style={{
+                      color: isActive ? '#D4A017' : '#cbd5e1',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      letterSpacing: 1,
+                    }}
+                    className="uppercase"
                   >
                     {tab.label}
                   </Text>
                   {count > 0 && (
                     <View
-                      className={`rounded-full px-1.5 py-0.5 min-w-[18px] items-center justify-center ${
-                        isActive ? 'bg-slate-900' : 'bg-surface-200'
-                      }`}
+                      style={{
+                        backgroundColor: isActive ? '#090d16' : 'rgba(255,255,255,0.08)',
+                        borderWidth: isActive ? 1 : 0,
+                        borderColor: '#D4A017',
+                        borderRadius: 9,
+                        minWidth: 18,
+                        height: 18,
+                      }}
+                      className="items-center justify-center"
                     >
                       <Text
-                        className={`text-[9px] font-black ${
-                          isActive ? 'text-yellow-400' : 'text-surface-400'
-                        }`}
+                        style={{
+                          color: isActive ? '#D4A017' : '#94a3b8',
+                          fontSize: 9,
+                          fontWeight: 'bold',
+                        }}
                       >
                         {count}
                       </Text>
@@ -537,8 +633,8 @@ export default function SellerBookingsScreen() {
       {/* List Container */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#eab308" size="large" />
-          <Text className="text-surface-400 text-xs mt-2">Syncing with blockchain/database...</Text>
+          <ActivityIndicator color="#D4A017" size="large" />
+          <Text style={{ letterSpacing: 1 }} className="text-surface-400 text-xxs mt-2 uppercase">Syncing protocol database...</Text>
         </View>
       ) : (
         <FlatList
@@ -546,13 +642,13 @@ export default function SellerBookingsScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderBookingCard}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#eab308" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4A017" />
           }
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center pt-24 px-8">
               <Text className="text-4xl mb-3">📭</Text>
-              <Text className="text-white text-base font-bold mb-2">No bookings found</Text>
-              <Text className="text-surface-400 text-sm text-center">
+              <Text style={{ letterSpacing: 1.5 }} className="text-white text-base font-bold mb-2 uppercase">No Bookings Found</Text>
+              <Text className="text-surface-400 text-xs text-center leading-relaxed">
                 {activeTab === 'pending'
                   ? 'Great job! You have no pending bookings from suppliers awaiting your review.'
                   : activeTab === 'proof_submitted'
@@ -573,32 +669,41 @@ export default function SellerBookingsScreen() {
         onRequestClose={() => setAcceptTarget(null)}
       >
         <View className="flex-1 justify-end bg-black/75">
-          <View className="bg-surface rounded-t-3xl p-6 border-t border-surface-200">
+          <View style={{ backgroundColor: '#090d16', borderTopWidth: 1.5, borderTopColor: 'rgba(212, 160, 23, 0.3)', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} className="p-6">
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-white text-lg font-bold">Attach Buyer PUBG ID</Text>
+              <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold uppercase">Attach Buyer PUBG ID</Text>
               <TouchableOpacity onPress={() => setAcceptTarget(null)} className="p-1">
                 <Text className="text-surface-400 text-base font-black">✕</Text>
               </TouchableOpacity>
             </View>
 
             {acceptTarget && (
-              <View className="bg-surface-100 p-4 rounded-2xl mb-4 border border-surface-200">
-                <Text className="text-white text-sm font-semibold mb-1">
+              <View style={{ backgroundColor: 'rgba(30,41,59,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="p-4 mb-4">
+                <Text style={{ letterSpacing: 0.5 }} className="text-white text-xs font-bold">
                   Booking by {acceptTarget.supplierName}
                 </Text>
-                <Text className="text-yellow-500 font-bold text-lg">
+                <Text className="text-[#D4A017] font-bold text-lg">
                   {acceptTarget.bookedAmount.toLocaleString()} POP
                 </Text>
-                <Text className="text-surface-400 text-xs mt-1">
+                <Text className="text-surface-400 text-xxs mt-1 leading-relaxed">
                   Once accepted, the supplier will be given the PUBG ID below to send these POP units directly.
                 </Text>
               </View>
             )}
 
             <View className="mb-6">
-              <Text className="text-surface-300 text-sm mb-2">Target Buyer PUBG ID *</Text>
+              <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Target Buyer PUBG ID *</Text>
               <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base border border-surface-200"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: 'rgba(255,255,255,0.08)',
+                  backgroundColor: 'rgba(30,41,59,0.4)',
+                  color: '#fff',
+                  borderRadius: 8,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                }}
                 value={buyerPubgId}
                 onChangeText={setBuyerPubgId}
                 placeholder="Enter Buyer's numerical PUBG ID"
@@ -609,9 +714,18 @@ export default function SellerBookingsScreen() {
 
             <TouchableOpacity
               onPress={handleAcceptSubmit}
-              className="bg-yellow-500 rounded-xl py-4 items-center justify-center mb-2"
+              style={{
+                borderWidth: 1.5,
+                borderColor: '#D4A017',
+                borderRadius: 2,
+                backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                paddingVertical: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              className="mb-2"
             >
-              <Text className="text-slate-950 font-bold text-base">✓ Accept & Send to Supplier</Text>
+              <Text style={{ letterSpacing: 1.5 }} className="text-white font-bold text-xs uppercase">✓ Accept & Send to Supplier</Text>
             </TouchableOpacity>
           </View>
         </View>

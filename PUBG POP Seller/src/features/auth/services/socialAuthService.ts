@@ -1,4 +1,3 @@
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 import {
   GoogleAuthProvider,
@@ -7,21 +6,46 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 
 import { COLLECTION } from '@/constants';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/shared/types';
 
+// Safe dynamic requires to prevent crashes in Expo Go
+let GoogleSignin: any = null;
+let LoginManager: any = null;
+let AccessToken: any = null;
+
+try {
+  const googleModule = require('@react-native-google-signin/google-signin');
+  GoogleSignin = googleModule.GoogleSignin;
+} catch (error) {
+  console.warn('[SOCIAL AUTH] Google Sign-in native module is not available (e.g. running in Expo Go).');
+}
+
+try {
+  const fbModule = require('react-native-fbsdk-next');
+  LoginManager = fbModule.LoginManager;
+  AccessToken = fbModule.AccessToken;
+} catch (error) {
+  console.warn('[SOCIAL AUTH] Facebook SDK native module is not available (e.g. running in Expo Go).');
+}
+
 // Retrieve credentials from Expo Config Extra
 const googleWebClientId = Constants.expoConfig?.extra?.googleWebClientId || '';
 
-// Configure Google Sign-In with Web Client ID
-if (googleWebClientId) {
-  GoogleSignin.configure({
-    webClientId: googleWebClientId,
-  });
-  console.log('[SOCIAL AUTH] Google Sign-In configured successfully.');
+// Configure Google Sign-In with Web Client ID if module is loaded
+if (GoogleSignin && googleWebClientId) {
+  try {
+    GoogleSignin.configure({
+      webClientId: googleWebClientId,
+    });
+    console.log('[SOCIAL AUTH] Google Sign-In configured successfully.');
+  } catch (error) {
+    console.error('[SOCIAL AUTH] Failed to configure Google Sign-In:', error);
+  }
+} else if (!GoogleSignin) {
+  console.log('[SOCIAL AUTH] Google Sign-In setup skipped (module not loaded).');
 } else {
   console.warn('[SOCIAL AUTH] GOOGLE_WEB_CLIENT_ID is missing from environment/config.');
 }
@@ -79,6 +103,10 @@ export const socialAuthService = {
    * Log in using real native Google Authentication.
    */
   async signInWithGoogle(): Promise<UserProfile> {
+    if (!GoogleSignin) {
+      throw new Error('Google Sign-In is not supported in Expo Go. To test Google Sign-In, please build a Development Client or run the compiled APK.');
+    }
+
     console.log('[SOCIAL AUTH] Initiating native Google sign-in...');
     
     try {
@@ -108,6 +136,10 @@ export const socialAuthService = {
    * Log in using real native Facebook Authentication.
    */
   async signInWithFacebook(): Promise<UserProfile> {
+    if (!LoginManager || !AccessToken) {
+      throw new Error('Facebook Login is not supported in Expo Go. To test Facebook Login, please build a Development Client or run the compiled APK.');
+    }
+
     console.log('[SOCIAL AUTH] Initiating native Facebook Login...');
 
     try {

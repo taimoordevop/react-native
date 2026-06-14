@@ -28,19 +28,45 @@ const METHOD_ICONS: Record<PaymentMethodType, string> = {
   NayaPay: '🟢',
 };
 
-/** Role badge config — PUBG dark theme colors */
+/** Role badge config — Gold theme matching roles */
 const ROLE_BADGE: Record<UserRole, { label: string; bg: string; text: string }> = {
-  buyer:    { label: 'Buyer',    bg: 'bg-blue-500/20',   text: 'text-blue-400' },
-  supplier: { label: 'Supplier', bg: 'bg-green-500/20',  text: 'text-green-400' },
-  seller:   { label: 'Seller',   bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
-  admin:    { label: 'Admin',    bg: 'bg-purple-500/20', text: 'text-purple-400' },
+  buyer:    { label: 'Buyer',    bg: 'rgba(59, 130, 246, 0.12)',   text: 'text-blue-400' },
+  supplier: { label: 'Supplier', bg: 'rgba(34, 197, 94, 0.12)',  text: 'text-green-400' },
+  seller:   { label: 'Seller',   bg: 'rgba(234, 179, 8, 0.12)', text: 'text-yellow-400' },
+  admin:    { label: 'Admin',    bg: 'rgba(168, 85, 247, 0.12)', text: 'text-purple-400' },
 };
 
-/** Get current methods array from paymentDetails — merges legacy flat fields + new methods array */
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CornerReticles() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+      <View style={{ position: 'absolute', top: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', top: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+    </View>
+  );
+}
+
 function getMethods(details: import('@/shared/types').SellerPaymentDetails | null | undefined): PaymentMethod[] {
   if (!details) return [];
   const out: PaymentMethod[] = [...(details.methods ?? [])];
-  // Migrate legacy flat fields if no methods array yet
   if (!details.methods) {
     if (details.jazzCash) out.push({ type: 'JazzCash', accountNumber: details.jazzCash });
     if (details.easyPaisa) out.push({ type: 'EasyPaisa', accountNumber: details.easyPaisa });
@@ -52,37 +78,39 @@ function getMethods(details: import('@/shared/types').SellerPaymentDetails | nul
 export default function ProfileScreen() {
   const { user, setUser, signOut } = useAuthStore();
 
-  // Edit PUBG modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editPubgId, setEditPubgId] = useState(user?.pubgId ?? '');
   const [editNickname, setEditNickname] = useState(user?.pubgNickname ?? '');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Edit contact (WhatsApp + Drive) modal state
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [editWhatsapp, setEditWhatsapp] = useState(user?.whatsappNumber ?? '');
   const [editDriveFolder, setEditDriveFolder] = useState(user?.googleDriveFolder ?? '');
   const [contactLoading, setContactLoading] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
 
-  // Payment method modal state
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  // Which method we're adding/editing (null = closed)
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  // Form fields for the method being added/edited
   const [selectedType, setSelectedType] = useState<PaymentMethodType>('JazzCash');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountTitle, setAccountTitle] = useState('');
-  // Show type picker dropdown
   const [typePickerOpen, setTypePickerOpen] = useState(false);
 
-  // Default Commission Settings
   const [commissionInput, setCommissionInput] = useState(String(user?.defaultCommissionPer10k ?? 40));
   const [savingCommission, setSavingCommission] = useState(false);
   const [commissionError, setCommissionError] = useState<string | null>(null);
+
+  // Field focus states for styling
+  const [pubgIdFocused, setPubgIdFocused] = useState(false);
+  const [nicknameFocused, setNicknameFocused] = useState(false);
+  const [whatsappFocused, setWhatsappFocused] = useState(false);
+  const [driveFocused, setDriveFocused] = useState(false);
+  const [accountNumberFocused, setAccountNumberFocused] = useState(false);
+  const [accountTitleFocused, setAccountTitleFocused] = useState(false);
+  const [commissionFocused, setCommissionFocused] = useState(false);
 
   useEffect(() => {
     if (user?.defaultCommissionPer10k !== undefined) {
@@ -202,7 +230,6 @@ export default function ProfileScreen() {
     }
   };
 
-  /** Open modal to add a new payment method */
   const openAddMethod = () => {
     setEditingIndex(null);
     setSelectedType('JazzCash');
@@ -213,7 +240,6 @@ export default function ProfileScreen() {
     setPayModalVisible(true);
   };
 
-  /** Open modal to edit an existing payment method */
   const openEditMethod = (index: number) => {
     const m = savedMethods[index];
     setEditingIndex(index);
@@ -289,41 +315,43 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      {/* eslint-disable-next-line react-native/no-inline-styles */}
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }}>
-        <View className="flex-row items-center mb-6">
-          {role === 'admin' && (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="mr-3 p-2 bg-surface-100 rounded-xl"
-            >
-              <Text className="text-purple-400 font-bold text-sm">← Back</Text>
-            </TouchableOpacity>
-          )}
-          <Text className="text-white text-2xl font-bold">Profile</Text>
-        </View>
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      <TacticalGrid />
+      <CornerReticles />
 
+      {/* Header */}
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="flex-row items-center px-4 py-3 bg-[#090d16]">
+        {role === 'admin' && (
+          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+            <Text className="text-[#D4A017] text-base font-bold">← Back</Text>
+          </TouchableOpacity>
+        )}
+        <Text className="text-white text-base font-bold uppercase">Profile Settings</Text>
+      </View>
+
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        
         {/* ── Avatar + Identity Card ── */}
-        <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
           <View className="flex-row items-center gap-4 mb-4">
-            <View className="w-16 h-16 rounded-full bg-primary-500/30 items-center justify-center">
-              <Text className="text-primary-400 text-2xl font-bold">
+            <View style={{ borderWidth: 1, borderColor: '#D4A017', backgroundColor: 'rgba(212, 160, 23, 0.1)' }} className="w-16 h-16 rounded-full items-center justify-center">
+              <Text className="text-[#D4A017] text-2xl font-bold">
                 {user?.displayName?.charAt(0)?.toUpperCase() ?? '?'}
               </Text>
             </View>
             <View className="flex-1">
-              <Text className="text-white text-lg font-bold">{user?.displayName ?? 'Seller'}</Text>
-              <Text className="text-surface-300 text-sm mb-1">{user?.email ?? ''}</Text>
-              {/* Role badge */}
-              <View className={`self-start px-3 py-1 rounded-full ${badge.bg}`}>
-                <Text className={`text-xs font-semibold ${badge.text}`}>{badge.label}</Text>
+              <Text className="text-white text-base font-bold">{user?.displayName ?? 'Operator'}</Text>
+              <Text className="text-surface-300 text-xs mb-1.5">{user?.email ?? ''}</Text>
+              
+              <View style={{ backgroundColor: badge.bg, borderRadius: 2 }} className="self-start px-2.5 py-0.5">
+                <Text style={{ letterSpacing: 0.5 }} className={`text-[10px] font-bold uppercase ${badge.text}`}>
+                  {badge.label}
+                </Text>
               </View>
             </View>
-            {/* Verified indicator */}
             {user?.isVerified && (
-              <View className="bg-green-500/20 rounded-full px-2 py-1">
-                <Text className="text-green-400 text-xs">✓ Verified</Text>
+              <View className="bg-green-500/10 border border-green-500/20 rounded px-2 py-0.5">
+                <Text className="text-green-400 text-[9px] font-bold uppercase">Verified</Text>
               </View>
             )}
           </View>
@@ -333,55 +361,55 @@ export default function ProfileScreen() {
             {[
               { label: 'Reputation', value: String(user?.reputation ?? 0) },
               { label: 'POP Sent', value: String(user?.totalPopSent ?? 0) },
-              { label: 'POP Received', value: String(user?.totalPopReceived ?? 0) },
+              { label: 'POP Recv', value: String(user?.totalPopReceived ?? 0) },
             ].map(({ label, value }) => (
-              <View key={label} className="flex-1 items-center bg-surface-200 rounded-xl p-3">
-                <Text className="text-white font-bold text-lg">{value}</Text>
-                <Text className="text-surface-300 text-xs text-center">{label}</Text>
+              <View key={label} style={{ backgroundColor: 'rgba(30, 41, 59, 0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }} className="flex-1 items-center p-3">
+                <Text className="text-white font-bold text-base">{value}</Text>
+                <Text className="text-surface-300 text-[10px] uppercase mt-0.5">{label}</Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* ── PUBG Details Card ── */}
-        <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
           <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-white font-semibold">PUBG Details</Text>
+            <Text style={{ letterSpacing: 0.5 }} className="text-white text-xs font-bold uppercase">PUBG Details</Text>
             <TouchableOpacity onPress={openEditModal}>
-              <Text className="text-primary-400 text-sm">Edit</Text>
+              <Text className="text-[#D4A017] text-xs font-bold uppercase">Edit</Text>
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row justify-between py-2 border-b border-surface-200">
-            <Text className="text-surface-300 text-sm">PUBG ID</Text>
-            <Text className="text-white text-sm">{user?.pubgId ?? 'Not set'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-white/5">
+            <Text className="text-surface-300 text-xs">PUBG ID</Text>
+            <Text className="text-white text-xs font-semibold">{user?.pubgId ?? 'Not set'}</Text>
           </View>
-          <View className="flex-row justify-between py-2 border-b border-surface-200">
-            <Text className="text-surface-300 text-sm">Nickname</Text>
-            <Text className="text-white text-sm">{user?.pubgNickname ?? 'Not set'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-white/5">
+            <Text className="text-surface-300 text-xs">Nickname</Text>
+            <Text className="text-white text-xs font-semibold">{user?.pubgNickname ?? 'Not set'}</Text>
           </View>
-          <View className="flex-row justify-between py-2">
-            <Text className="text-surface-300 text-sm">Server</Text>
-            <Text className="text-white text-sm">{user?.pubgServer ?? 'Not set'}</Text>
+          <View className="flex-row justify-between py-2.5">
+            <Text className="text-surface-300 text-xs">Server</Text>
+            <Text className="text-white text-xs font-semibold">{user?.pubgServer ?? 'Not set'}</Text>
           </View>
         </View>
 
         {/* ── Contact & Storage Card ── */}
-        <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
           <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-white font-semibold">Contact & Storage</Text>
+            <Text style={{ letterSpacing: 0.5 }} className="text-white text-xs font-bold uppercase">Contact & Storage</Text>
             <TouchableOpacity onPress={openEditContactModal}>
-              <Text className="text-primary-400 text-sm">Edit</Text>
+              <Text className="text-[#D4A017] text-xs font-bold uppercase">Edit</Text>
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row justify-between py-2 border-b border-surface-200">
-            <Text className="text-surface-300 text-sm">WhatsApp Number</Text>
-            <Text className="text-white text-sm">{user?.whatsappNumber ?? 'Not set'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-white/5">
+            <Text className="text-surface-300 text-xs">WhatsApp Number</Text>
+            <Text className="text-white text-xs font-semibold">{user?.whatsappNumber ?? 'Not set'}</Text>
           </View>
-          <View className="flex-row justify-between py-2">
-            <Text className="text-surface-300 text-sm">Google Drive Folder</Text>
-            <Text className="text-white text-sm flex-1 text-right ml-4" numberOfLines={1}>
+          <View className="flex-row justify-between py-2.5">
+            <Text className="text-surface-300 text-xs">Google Drive Folder</Text>
+            <Text className="text-white text-xs font-semibold flex-1 text-right ml-4" numberOfLines={1}>
               {user?.googleDriveFolder ?? 'Not set'}
             </Text>
           </View>
@@ -389,55 +417,55 @@ export default function ProfileScreen() {
 
         {/* ── Payment Details (seller/supplier only) ── */}
         {(role === 'seller' || role === 'supplier') && (
-          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+          <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-white font-semibold">Payment Methods</Text>
+              <Text style={{ letterSpacing: 0.5 }} className="text-white text-xs font-bold uppercase">Payment Methods</Text>
               <TouchableOpacity onPress={openAddMethod}>
-                <Text className="text-primary-400 text-sm">+ Add</Text>
+                <Text className="text-[#D4A017] text-xs font-bold uppercase">+ Add</Text>
               </TouchableOpacity>
             </View>
 
             {savedMethods.length === 0 ? (
-              <Text className="text-surface-400 text-sm">
+              <Text className="text-surface-400 text-xs mt-1">
                 No payment methods yet. Tap + Add to add JazzCash, EasyPaisa, Bank, etc.
               </Text>
             ) : (
               savedMethods.map((m, i) => (
                 <View
                   key={i}
-                  className={`flex-row items-center py-3 ${
-                    i < savedMethods.length - 1 ? 'border-b border-surface-200' : ''
-                  }`}
+                  style={{ borderBottomWidth: i < savedMethods.length - 1 ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                  className="flex-row items-center py-3"
                 >
-                  {/* Icon + details */}
-                  <Text className="text-xl mr-3">{METHOD_ICONS[m.type]}</Text>
+                  <Text className="text-lg mr-3">{METHOD_ICONS[m.type]}</Text>
                   <View className="flex-1">
-                    <Text className="text-white font-semibold text-sm">{m.type}</Text>
+                    <Text className="text-white font-bold text-xs">{m.type}</Text>
                     {m.accountTitle ? (
-                      <Text className="text-surface-400 text-xs">{m.accountTitle}</Text>
+                      <Text className="text-surface-400 text-[10px] mt-0.5">{m.accountTitle}</Text>
                     ) : null}
-                    <Text className="text-surface-300 text-sm">{m.accountNumber}</Text>
+                    <Text className="text-surface-300 text-xs mt-0.5">{m.accountNumber}</Text>
                   </View>
-                  {/* Copy */}
+                  
+                  {/* Actions */}
                   <TouchableOpacity
                     onPress={() => Clipboard.setStringAsync(m.accountNumber)}
-                    className="bg-surface-200 rounded-lg px-2 py-1 mr-2"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}
+                    className="p-2 mr-2"
                   >
-                    <Text className="text-surface-300 text-xs">📋</Text>
+                    <Text className="text-white text-xs">📋</Text>
                   </TouchableOpacity>
-                  {/* Edit */}
                   <TouchableOpacity
                     onPress={() => openEditMethod(i)}
-                    className="bg-primary-500/20 rounded-lg px-2 py-1 mr-2"
+                    style={{ borderWidth: 1, borderColor: '#D4A017', backgroundColor: 'rgba(212, 160, 23, 0.08)', borderRadius: 2 }}
+                    className="px-2.5 py-1.5 mr-2"
                   >
-                    <Text className="text-primary-400 text-xs">Edit</Text>
+                    <Text className="text-[#D4A017] text-[10px] font-bold uppercase">Edit</Text>
                   </TouchableOpacity>
-                  {/* Delete */}
                   <TouchableOpacity
                     onPress={() => handleDeleteMethod(i)}
-                    className="bg-red-500/20 rounded-lg px-2 py-1"
+                    style={{ borderWidth: 1, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)', borderRadius: 2 }}
+                    className="px-2.5 py-1.5"
                   >
-                    <Text className="text-red-400 text-xs">✕</Text>
+                    <Text className="text-[#ef4444] text-[10px] font-bold uppercase">✕</Text>
                   </TouchableOpacity>
                 </View>
               ))
@@ -447,20 +475,31 @@ export default function ProfileScreen() {
 
         {/* ── Default Commission Settings (seller only) ── */}
         {role === 'seller' && (
-          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
-            <Text className="text-white font-semibold mb-2">Default Commission</Text>
-            <Text className="text-surface-300 text-xs mb-3 leading-relaxed">
+          <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
+            <Text style={{ letterSpacing: 0.5 }} className="text-white text-xs font-bold uppercase mb-2">Default Commission</Text>
+            <Text className="text-surface-300 text-xxs mb-3 leading-relaxed">
               Set your default profit margin commission per 10k POP. This will automatically deduct from the Buyer Rate when creating a Supplier Request.
             </Text>
             <View className="flex-row items-center gap-3">
               <View className="flex-1">
                 <TextInput
-                  className="bg-surface-200 text-white rounded-xl px-4 py-3 text-base"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: commissionFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                    color: '#fff',
+                    borderRadius: 4,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 13,
+                  }}
                   value={commissionInput}
                   onChangeText={(val) => {
                     const clean = val.replace(/[^0-9]/g, '');
                     setCommissionInput(clean);
                   }}
+                  onFocus={() => setCommissionFocused(true)}
+                  onBlur={() => setCommissionFocused(false)}
                   placeholder="e.g. 40"
                   placeholderTextColor="#475569"
                   keyboardType="numeric"
@@ -468,38 +507,41 @@ export default function ProfileScreen() {
               </View>
               <TouchableOpacity
                 onPress={handleSaveCommission}
-                className="bg-yellow-500 rounded-xl px-5 py-3.5"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: '#D4A017',
+                  backgroundColor: 'rgba(212,160,23,0.15)',
+                  borderRadius: 2,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                }}
                 disabled={savingCommission}
               >
                 {savingCommission ? (
-                  <ActivityIndicator color="#000" size="small" />
+                  <ActivityIndicator color="#D4A017" size="small" />
                 ) : (
-                  <Text className="text-slate-950 font-bold text-sm">Save</Text>
+                  <Text className="text-[#D4A017] font-bold text-xs uppercase">Save</Text>
                 )}
               </TouchableOpacity>
             </View>
             {commissionError ? (
-              <Text className="text-red-400 text-xs mt-1.5">{commissionError}</Text>
+              <Text className="text-red-400 text-xxs mt-1.5">{commissionError}</Text>
             ) : null}
           </View>
         )}
 
         {/* ── Quick Actions ── */}
-        <View className="bg-surface-100 rounded-2xl overflow-hidden mb-4">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.25)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="mb-4 overflow-hidden">
           {[
-            { label: 'My Listings', action: () => {} },
-            { label: 'Earnings', action: () => {} },
-            { label: 'Settings', action: () => {} },
-            { label: 'Redo Onboarding', action: handleGoToOnboarding },
+            { label: '🔄 Redo Onboarding', action: handleGoToOnboarding },
           ].map(({ label, action }, i, arr) => (
             <TouchableOpacity
               key={label}
               onPress={action}
-              className={`px-4 py-4 flex-row justify-between items-center ${
-                i < arr.length - 1 ? 'border-b border-surface-200' : ''
-              }`}
+              style={{ borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+              className="px-4 py-3.5 flex-row justify-between items-center"
             >
-              <Text className="text-white">{label}</Text>
+              <Text className="text-white text-xs font-semibold uppercase">{label}</Text>
               <Text className="text-surface-300">›</Text>
             </TouchableOpacity>
           ))}
@@ -507,10 +549,17 @@ export default function ProfileScreen() {
 
         {/* ── Sign Out ── */}
         <TouchableOpacity
-          className="bg-red-500/20 border border-red-500/30 rounded-2xl py-4 items-center"
+          style={{
+            borderWidth: 1.5,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderRadius: 2,
+            paddingVertical: 14,
+            alignItems: 'center',
+          }}
           onPress={handleSignOut}
         >
-          <Text className="text-red-400 font-semibold">Sign Out</Text>
+          <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }} className="uppercase">Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -523,51 +572,51 @@ export default function ProfileScreen() {
       >
         <View className="flex-1 justify-end bg-black/60">
           <ScrollView
-            /* eslint-disable-next-line react-native/no-inline-styles */
             style={{ maxHeight: '85%' }}
             keyboardShouldPersistTaps="handled"
           >
-            <View className="bg-surface rounded-t-3xl p-6">
-              <Text className="text-white text-xl font-bold mb-1">
+            <View style={{ backgroundColor: '#090d16', borderTopWidth: 2, borderTopColor: '#D4A017' }} className="p-6">
+              <Text className="text-white text-base font-bold uppercase mb-1">
                 {editingIndex !== null ? 'Update Payment Method' : 'Add Payment Method'}
               </Text>
-              <Text className="text-surface-300 text-sm mb-5">
+              <Text className="text-surface-300 text-xs mb-5">
                 {editingIndex !== null
                   ? 'Edit your account details below.'
                   : 'Choose a payment type and enter your account number.'}
               </Text>
 
               {/* ── Payment Type Dropdown ── */}
-              <Text className="text-surface-300 text-sm mb-2">Payment Type *</Text>
+              <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">Payment Type *</Text>
               <TouchableOpacity
-                className="bg-surface-100 rounded-xl px-4 py-3 mb-1 flex-row justify-between items-center"
+                style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(30, 41, 59, 0.35)', borderRadius: 4 }}
+                className="px-4 py-3 mb-1 flex-row justify-between items-center"
                 onPress={() => setTypePickerOpen((o) => !o)}
               >
                 <View className="flex-row items-center gap-2">
-                  <Text className="text-xl">{METHOD_ICONS[selectedType]}</Text>
-                  <Text className="text-white text-base">{selectedType}</Text>
+                  <Text className="text-lg">{METHOD_ICONS[selectedType]}</Text>
+                  <Text className="text-white text-sm font-semibold">{selectedType}</Text>
                 </View>
-                <Text className="text-surface-300">{typePickerOpen ? '▲' : '▼'}</Text>
+                <Text className="text-[#D4A017]">{typePickerOpen ? '▲' : '▼'}</Text>
               </TouchableOpacity>
 
               {typePickerOpen && (
-                <View className="bg-surface-200 rounded-xl mb-4 overflow-hidden">
+                <View style={{ borderWidth: 1.5, borderColor: 'rgba(212, 160, 23, 0.2)', backgroundColor: 'rgba(30, 41, 59, 0.9)', borderRadius: 4 }} className="mb-4 overflow-hidden">
                   {PAYMENT_TYPES.map((pt) => (
                     <TouchableOpacity
                       key={pt}
                       className={`px-4 py-3 flex-row items-center gap-3 ${
-                        pt === selectedType ? 'bg-primary-500/20' : ''
+                        pt === selectedType ? 'bg-[#D4A017]/10' : ''
                       }`}
                       onPress={() => {
                         setSelectedType(pt);
                         setTypePickerOpen(false);
                       }}
                     >
-                      <Text className="text-xl">{METHOD_ICONS[pt]}</Text>
-                      <Text className={`text-base ${
-                        pt === selectedType ? 'text-primary-400 font-semibold' : 'text-white'
+                      <Text className="text-lg">{METHOD_ICONS[pt]}</Text>
+                      <Text className={`text-xs ${
+                        pt === selectedType ? 'text-[#D4A017] font-bold' : 'text-white'
                       }`}>{pt}</Text>
-                      {pt === selectedType && <Text className="text-primary-400 ml-auto">✓</Text>}
+                      {pt === selectedType && <Text className="text-[#D4A017] ml-auto">✓</Text>}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -575,11 +624,22 @@ export default function ProfileScreen() {
 
               {/* ── Account Number ── */}
               <View className="mb-4 mt-2">
-                <Text className="text-surface-300 text-sm mb-2">Account Number *</Text>
+                <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">Account Number *</Text>
                 <TextInput
-                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: accountNumberFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                    color: '#fff',
+                    borderRadius: 4,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 13,
+                  }}
                   value={accountNumber}
                   onChangeText={(v) => { setAccountNumber(v); setPayError(null); }}
+                  onFocus={() => setAccountNumberFocused(true)}
+                  onBlur={() => setAccountNumberFocused(false)}
                   placeholder={
                     selectedType === 'Bank Transfer'
                       ? 'IBAN or account number'
@@ -592,15 +652,26 @@ export default function ProfileScreen() {
                 />
               </View>
 
-              {/* ── Account Title (optional) ── */}
+              {/* ── Account Title ── */}
               <View className="mb-5">
-                <Text className="text-surface-300 text-sm mb-2">
+                <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">
                   {selectedType === 'Bank Transfer' ? 'Account Title / Bank Name' : 'Account Name (optional)'}
                 </Text>
                 <TextInput
-                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: accountTitleFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                    color: '#fff',
+                    borderRadius: 4,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 13,
+                  }}
                   value={accountTitle}
                   onChangeText={setAccountTitle}
+                  onFocus={() => setAccountTitleFocused(true)}
+                  onBlur={() => setAccountTitleFocused(false)}
                   placeholder={
                     selectedType === 'Bank Transfer'
                       ? 'e.g. Muhammad Ali — HBL'
@@ -613,30 +684,30 @@ export default function ProfileScreen() {
               </View>
 
               {payError && (
-                <View className="bg-red-500/20 border border-red-500/30 rounded-xl p-3 mb-4">
-                  <Text className="text-red-400 text-sm">{payError}</Text>
+                <View className="bg-red-500/10 border border-red-500/20 rounded px-3 py-2.5 mb-4">
+                  <Text className="text-red-400 text-xxs">{payError}</Text>
                 </View>
               )}
 
               <View className="flex-row gap-3">
                 <TouchableOpacity
-                  className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                  style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}
+                  className="flex-1 py-3.5 items-center"
                   onPress={() => setPayModalVisible(false)}
                   disabled={payLoading}
                 >
-                  <Text className="text-white font-semibold">Cancel</Text>
+                  <Text className="text-white font-bold text-xs uppercase">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  className={`flex-1 rounded-xl py-4 items-center ${
-                    payLoading ? 'bg-surface-200' : 'bg-primary-500'
-                  }`}
+                  style={{ borderWidth: 1.5, borderColor: '#D4A017', backgroundColor: 'rgba(212,160,23,0.15)', borderRadius: 2 }}
+                  className="flex-1 py-3.5 items-center"
                   onPress={handleSaveMethod}
                   disabled={payLoading}
                 >
                   {payLoading ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color="#D4A017" />
                   ) : (
-                    <Text className="text-white font-semibold">
+                    <Text className="text-[#D4A017] font-bold text-xs uppercase">
                       {editingIndex !== null ? 'Update' : 'Save Method'}
                     </Text>
                   )}
@@ -655,18 +726,29 @@ export default function ProfileScreen() {
         onRequestClose={() => setEditModalVisible(false)}
       >
         <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-surface rounded-t-3xl p-6">
-            <Text className="text-white text-xl font-bold mb-1">Edit PUBG Info</Text>
-            <Text className="text-surface-300 text-sm mb-6">
+          <View style={{ backgroundColor: '#090d16', borderTopWidth: 2, borderTopColor: '#D4A017' }} className="p-6">
+            <Text className="text-white text-base font-bold uppercase mb-1">Edit PUBG Info</Text>
+            <Text className="text-surface-300 text-xs mb-6">
               Update your PUBG ID and in-game nickname.
             </Text>
 
             <View className="mb-4">
-              <Text className="text-surface-300 text-sm mb-2">PUBG ID</Text>
+              <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">PUBG ID</Text>
               <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: pubgIdFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                  color: '#fff',
+                  borderRadius: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  fontSize: 13,
+                }}
                 value={editPubgId}
                 onChangeText={(v) => { setEditPubgId(v); setEditError(null); }}
+                onFocus={() => setPubgIdFocused(true)}
+                onBlur={() => setPubgIdFocused(false)}
                 placeholder="e.g. 5123456789"
                 placeholderTextColor="#475569"
                 autoCapitalize="none"
@@ -676,11 +758,22 @@ export default function ProfileScreen() {
             </View>
 
             <View className="mb-5">
-              <Text className="text-surface-300 text-sm mb-2">PUBG Nickname</Text>
+              <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">PUBG Nickname</Text>
               <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: nicknameFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                  color: '#fff',
+                  borderRadius: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  fontSize: 13,
+                }}
                 value={editNickname}
                 onChangeText={(v) => { setEditNickname(v); setEditError(null); }}
+                onFocus={() => setNicknameFocused(true)}
+                onBlur={() => setNicknameFocused(false)}
                 placeholder="e.g. ProSniper99"
                 placeholderTextColor="#475569"
                 autoCapitalize="none"
@@ -690,28 +783,30 @@ export default function ProfileScreen() {
             </View>
 
             {editError && (
-              <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
-                <Text className="text-red-400 text-sm">{editError}</Text>
+              <View className="bg-red-500/10 border border-red-500/20 rounded px-3 py-2.5 mb-4">
+                <Text className="text-red-400 text-xxs">{editError}</Text>
               </View>
             )}
 
             <View className="flex-row gap-3">
               <TouchableOpacity
-                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}
+                className="flex-1 py-3.5 items-center"
                 onPress={() => setEditModalVisible(false)}
                 disabled={editLoading}
               >
-                <Text className="text-white font-semibold">Cancel</Text>
+                <Text className="text-white font-bold text-xs uppercase">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`flex-1 rounded-xl py-4 items-center ${editLoading ? 'bg-surface-200' : 'bg-primary-500'}`}
+                style={{ borderWidth: 1.5, borderColor: '#D4A017', backgroundColor: 'rgba(212,160,23,0.15)', borderRadius: 2 }}
+                className="flex-1 py-3.5 items-center"
                 onPress={handleSavePubgInfo}
                 disabled={editLoading}
               >
                 {editLoading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#D4A017" />
                 ) : (
-                  <Text className="text-white font-semibold">Save</Text>
+                  <Text className="text-[#D4A017] font-bold text-xs uppercase">Save</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -727,35 +822,57 @@ export default function ProfileScreen() {
         onRequestClose={() => setContactModalVisible(false)}
       >
         <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-surface rounded-t-3xl p-6">
-            <Text className="text-white text-xl font-bold mb-1">Edit Contact & Storage</Text>
-            <Text className="text-surface-300 text-sm mb-6">
+          <View style={{ backgroundColor: '#090d16', borderTopWidth: 2, borderTopColor: '#D4A017' }} className="p-6">
+            <Text className="text-white text-base font-bold uppercase mb-1">Edit Contact & Storage</Text>
+            <Text className="text-surface-300 text-xs mb-6">
               Provide your active WhatsApp number and optional Google Drive folder URL.
             </Text>
 
             <View className="mb-4">
-              <Text className="text-surface-300 text-sm mb-2">WhatsApp Number *</Text>
+              <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">WhatsApp Number *</Text>
               <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: whatsappFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                  color: '#fff',
+                  borderRadius: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  fontSize: 13,
+                }}
                 value={editWhatsapp}
                 onChangeText={(v) => { setEditWhatsapp(v); setContactError(null); }}
+                onFocus={() => setWhatsappFocused(true)}
+                onBlur={() => setWhatsappFocused(false)}
                 placeholder="e.g. +923001234567"
                 placeholderTextColor="#475569"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="phone-pad"
               />
-              <Text className="text-surface-400 text-xs mt-1">
+              <Text className="text-surface-400 text-[10px] mt-1.5">
                 Must start with country code +92 (exactly 12 characters, e.g., +923001234567).
               </Text>
             </View>
 
             <View className="mb-5">
-              <Text className="text-surface-300 text-sm mb-2">Google Drive Folder URL (optional)</Text>
+              <Text className="text-surface-300 text-xxs font-bold uppercase mb-2">Google Drive Folder URL (optional)</Text>
               <TextInput
-                className="bg-surface-100 text-white rounded-xl px-4 py-4 text-sm"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: driveFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: 'rgba(30, 41, 59, 0.35)',
+                  color: '#fff',
+                  borderRadius: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  fontSize: 12,
+                }}
                 value={editDriveFolder}
                 onChangeText={(v) => { setEditDriveFolder(v); setContactError(null); }}
+                onFocus={() => setDriveFocused(true)}
+                onBlur={() => setDriveFocused(false)}
                 placeholder="e.g. https://drive.google.com/drive/folders/..."
                 placeholderTextColor="#475569"
                 autoCapitalize="none"
@@ -765,28 +882,30 @@ export default function ProfileScreen() {
             </View>
 
             {contactError && (
-              <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
-                <Text className="text-red-400 text-sm">{contactError}</Text>
+              <View className="bg-red-500/10 border border-red-500/20 rounded px-3 py-2.5 mb-4">
+                <Text className="text-red-400 text-xxs">{contactError}</Text>
               </View>
             )}
 
             <View className="flex-row gap-3">
               <TouchableOpacity
-                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}
+                className="flex-1 py-3.5 items-center"
                 onPress={() => setContactModalVisible(false)}
                 disabled={contactLoading}
               >
-                <Text className="text-white font-semibold">Cancel</Text>
+                <Text className="text-white font-bold text-xs uppercase">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`flex-1 rounded-xl py-4 items-center ${contactLoading ? 'bg-surface-200' : 'bg-primary-500'}`}
+                style={{ borderWidth: 1.5, borderColor: '#D4A017', backgroundColor: 'rgba(212,160,23,0.15)', borderRadius: 2 }}
+                className="flex-1 py-3.5 items-center"
                 onPress={handleSaveContactInfo}
                 disabled={contactLoading}
               >
                 {contactLoading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#D4A017" />
                 ) : (
-                  <Text className="text-white font-semibold">Save</Text>
+                  <Text className="text-[#D4A017] font-bold text-xs uppercase">Save</Text>
                 )}
               </TouchableOpacity>
             </View>

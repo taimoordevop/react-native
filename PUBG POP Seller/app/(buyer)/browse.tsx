@@ -18,6 +18,34 @@ import { calcTotalPKR } from '@/features/orders/services/orderService';
 import { LoadingScreen } from '@/shared/components';
 import type { SellerRequest } from '@/shared/types';
 
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CornerReticles() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+      <View style={{ position: 'absolute', top: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', top: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+    </View>
+  );
+}
+
 function RequestCard({
   request,
   onOrder,
@@ -31,51 +59,58 @@ function RequestCard({
   ));
 
   return (
-    <View className="bg-surface-100 rounded-2xl p-4 mb-3 mx-4">
+    <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.2)', borderRadius: 4 }} className="p-4 mb-3 mx-4">
       <View className="flex-row justify-between items-start mb-3">
         <View>
-          <Text className="text-white font-bold text-xl">
+          <Text className="text-white font-bold text-lg">
             {request.totalPopAmount.toLocaleString()} POP
           </Text>
-          <Text className="text-surface-300 text-sm">by {request.sellerName}</Text>
+          <Text className="text-surface-300 text-xxs mt-0.5">by {request.sellerName}</Text>
         </View>
         <View className="items-end">
-          <Text className="text-primary-400 font-bold text-lg">
+          <Text className="text-[#D4A017] font-bold text-base">
             PKR {request.ratePer10k}/10k
           </Text>
-          <Text className="text-surface-300 text-xs">
+          <Text className="text-surface-400 text-[10px] mt-0.5">
             Total ≈ PKR {totalPKR.toLocaleString()}
           </Text>
         </View>
       </View>
 
       {/* Availability bar */}
-      <View className="mb-3">
-        <View className="flex-row justify-between mb-1">
-          <Text className="text-surface-300 text-xs">Availability</Text>
-          <Text className="text-surface-300 text-xs">
+      <View className="mb-4">
+        <View className="flex-row justify-between mb-1.5">
+          <Text className="text-surface-300 text-[10px] font-bold uppercase">Availability</Text>
+          <Text className="text-surface-300 text-[10px] font-bold uppercase">
             {request.remainingAmount.toLocaleString()} POP remaining
           </Text>
         </View>
-        <View className="bg-surface-200 rounded-full h-1.5 overflow-hidden">
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} className="rounded-full h-1.5 overflow-hidden">
           <View
-            className="bg-primary-500 h-full rounded-full"
-            style={{ width: `${100 - pctBooked}%` }}
+            style={{ width: `${100 - pctBooked}%`, backgroundColor: '#D4A017' }}
+            className="h-full rounded-full"
           />
         </View>
       </View>
 
       {request.notes && (
-        <View className="bg-surface-200 rounded-lg p-2 mb-3">
-          <Text className="text-surface-300 text-xs">{request.notes}</Text>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }} className="rounded p-2.5 mb-4">
+          <Text className="text-surface-300 text-xxs leading-relaxed">{request.notes}</Text>
         </View>
       )}
 
       <TouchableOpacity
-        className="bg-primary-500 rounded-xl py-3 items-center"
+        style={{
+          borderWidth: 1.5,
+          borderColor: '#D4A017',
+          borderRadius: 2,
+          backgroundColor: 'rgba(212, 160, 23, 0.15)',
+          paddingVertical: 12,
+          alignItems: 'center',
+        }}
         onPress={onOrder}
       >
-        <Text className="text-white font-bold">Place Order</Text>
+        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 }} className="uppercase">Place Order</Text>
       </TouchableOpacity>
     </View>
   );
@@ -94,6 +129,12 @@ export default function BuyerBrowseScreen() {
   const [deliveryType, setDeliveryType] = useState<'instant' | 'scheduled'>('instant');
   const [scheduledTime, setScheduledTime] = useState('');
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // Focus states
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [pubgIdFocused, setPubgIdFocused] = useState(false);
+  const [customFocused, setCustomFocused] = useState(false);
+  const [scheduleFocused, setScheduleFocused] = useState(false);
 
   const filtered = requests.filter((r: SellerRequest) =>
     r.sellerName.toLowerCase().includes(search.toLowerCase()) ||
@@ -163,16 +204,30 @@ export default function BuyerBrowseScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      {/* Background Overlay */}
+      <TacticalGrid />
+
       {/* Header */}
-      <View className="px-4 pt-4 pb-2">
-        <Text className="text-white text-2xl font-bold mb-3">Browse POP</Text>
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="px-4 pt-4 pb-3 bg-[#090d16]">
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold uppercase mb-3">Browse POP Marketplace</Text>
         <TextInput
-          className="bg-surface-100 text-white rounded-xl px-4 py-3 text-sm"
+          style={{
+            borderWidth: 1.5,
+            borderColor: searchFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+            backgroundColor: 'rgba(30,41,59,0.4)',
+            color: '#fff',
+            borderRadius: 8,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            fontSize: 13,
+          }}
           placeholder="Search by seller or rate..."
           placeholderTextColor="#475569"
           value={search}
           onChangeText={setSearch}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
           autoCorrect={false}
         />
       </View>
@@ -186,11 +241,11 @@ export default function BuyerBrowseScreen() {
           renderItem={({ item }) => (
             <RequestCard request={item} onOrder={() => handleOpenOrder(item)} />
           )}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 32, flexGrow: 1 }} // eslint-disable-line react-native/no-inline-styles
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 32, flexGrow: 1 }}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center pt-24">
-              <Text className="text-surface-300 text-base mb-1">No POP available right now</Text>
-              <Text className="text-surface-400 text-sm">Check back soon — sellers post new requests regularly.</Text>
+              <Text className="text-surface-300 text-sm mb-1 uppercase">No POP available right now</Text>
+              <Text className="text-surface-400 text-xxs text-center px-6 leading-relaxed uppercase">Check back soon — sellers post new requests regularly.</Text>
             </View>
           }
         />
@@ -203,24 +258,37 @@ export default function BuyerBrowseScreen() {
         animationType="slide"
         onRequestClose={() => setSelectedRequest(null)}
       >
-        <View className="flex-1 justify-end bg-black/60">
-          {/* eslint-disable-next-line react-native/no-inline-styles */}
+        <View className="flex-1 justify-end bg-black/70">
           <ScrollView style={{ maxHeight: '90%' }} bounces={false}>
-            <View className="bg-surface rounded-t-3xl p-6">
-              <Text className="text-white text-xl font-bold mb-1">Place Order</Text>
+            <View style={{ backgroundColor: '#090d16', borderTopWidth: 2, borderTopColor: '#D4A017' }} className="p-6 relative">
+              <CornerReticles />
+              <TacticalGrid />
+
+              <Text style={{ letterSpacing: 1 }} className="text-white text-lg font-bold uppercase mb-1">Place Order</Text>
               {selectedRequest && (
-                <Text className="text-surface-300 text-sm mb-5">
+                <Text className="text-surface-300 text-xs mb-5">
                   from {selectedRequest.sellerName} · PKR {selectedRequest.ratePer10k}/10k
                 </Text>
               )}
 
               {/* PUBG ID */}
               <View className="mb-4">
-                <Text className="text-surface-300 text-sm mb-2">Your PUBG ID <Text className="text-red-400">*</Text></Text>
+                <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Your PUBG ID *</Text>
                 <TextInput
-                  className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: pubgIdFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(30,41,59,0.4)',
+                    color: '#fff',
+                    borderRadius: 8,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 15,
+                  }}
                   value={pubgId}
                   onChangeText={(v) => { setPubgId(v); setOrderError(null); }}
+                  onFocus={() => setPubgIdFocused(true)}
+                  onBlur={() => setPubgIdFocused(false)}
                   placeholder="e.g. 5123456789"
                   placeholderTextColor="#475569"
                   autoCapitalize="none"
@@ -230,42 +298,57 @@ export default function BuyerBrowseScreen() {
 
               {/* Amount selector */}
               <View className="mb-4">
-                <Text className="text-surface-300 text-sm mb-2">POP Amount</Text>
+                <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">POP Amount</Text>
                 <View className="flex-row gap-3 mb-3">
                   <TouchableOpacity
                     onPress={() => { setAmountType('full'); setOrderError(null); }}
-                    className={`flex-1 py-3 rounded-xl items-center border-2 ${
-                      amountType === 'full' ? 'border-primary-500 bg-primary-500/10' : 'border-surface-200 bg-surface-100'
-                    }`}
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: amountType === 'full' ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: amountType === 'full' ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                      borderRadius: 4,
+                      paddingVertical: 12,
+                    }}
+                    className="flex-1 items-center"
                   >
-                    <Text className={`text-sm font-bold ${
-                      amountType === 'full' ? 'text-primary-400' : 'text-surface-300'
-                    }`}>All Available</Text>
+                    <Text style={{ color: amountType === 'full' ? '#D4A017' : '#cbd5e1', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">All Available</Text>
                     {selectedRequest && (
-                      <Text className={`text-xs mt-0.5 ${
-                        amountType === 'full' ? 'text-primary-400/70' : 'text-surface-400'
-                      }`}>{selectedRequest.remainingAmount.toLocaleString()} POP</Text>
+                      <Text style={{ color: amountType === 'full' ? 'rgba(212, 160, 23, 0.7)' : '#94a3b8', fontSize: 10, marginTop: 2 }}>
+                        {selectedRequest.remainingAmount.toLocaleString()} POP
+                      </Text>
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setAmountType('custom'); setOrderError(null); }}
-                    className={`flex-1 py-3 rounded-xl items-center border-2 ${
-                      amountType === 'custom' ? 'border-primary-500 bg-primary-500/10' : 'border-surface-200 bg-surface-100'
-                    }`}
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: amountType === 'custom' ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: amountType === 'custom' ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                      borderRadius: 4,
+                      paddingVertical: 12,
+                    }}
+                    className="flex-1 items-center"
                   >
-                    <Text className={`text-sm font-bold ${
-                      amountType === 'custom' ? 'text-primary-400' : 'text-surface-300'
-                    }`}>Custom Amount</Text>
-                    <Text className={`text-xs mt-0.5 ${
-                      amountType === 'custom' ? 'text-primary-400/70' : 'text-surface-400'
-                    }`}>enter below</Text>
+                    <Text style={{ color: amountType === 'custom' ? '#D4A017' : '#cbd5e1', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">Custom Amount</Text>
+                    <Text style={{ color: amountType === 'custom' ? 'rgba(212, 160, 23, 0.7)' : '#94a3b8', fontSize: 10, marginTop: 2 }} className="uppercase">enter below</Text>
                   </TouchableOpacity>
                 </View>
                 {amountType === 'custom' && (
                   <TextInput
-                    className="bg-surface-100 text-white rounded-xl px-4 py-4 text-base"
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: customFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: 'rgba(30,41,59,0.4)',
+                      color: '#fff',
+                      borderRadius: 8,
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      fontSize: 15,
+                    }}
                     value={customAmount}
                     onChangeText={(v) => { setCustomAmount(v); setOrderError(null); }}
+                    onFocus={() => setCustomFocused(true)}
+                    onBlur={() => setCustomFocused(false)}
                     placeholder={`max ${selectedRequest?.remainingAmount.toLocaleString() ?? ''}`}
                     placeholderTextColor="#475569"
                     keyboardType="numeric"
@@ -276,36 +359,53 @@ export default function BuyerBrowseScreen() {
 
               {/* Delivery type */}
               <View className="mb-4">
-                <Text className="text-surface-300 text-sm mb-2">Delivery Preference</Text>
+                <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Delivery Preference</Text>
                 <View className="flex-row gap-3 mb-2">
                   <TouchableOpacity
                     onPress={() => { setDeliveryType('instant'); setOrderError(null); }}
-                    className={`flex-1 py-3 rounded-xl items-center border-2 ${
-                      deliveryType === 'instant' ? 'border-green-500 bg-green-500/10' : 'border-surface-200 bg-surface-100'
-                    }`}
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: deliveryType === 'instant' ? '#22c55e' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: deliveryType === 'instant' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(30,41,59,0.4)',
+                      borderRadius: 4,
+                      paddingVertical: 12,
+                    }}
+                    className="flex-1 items-center"
                   >
-                    <Text className="text-xl mb-0.5">⚡</Text>
-                    <Text className={`text-sm font-bold ${
-                      deliveryType === 'instant' ? 'text-green-400' : 'text-surface-300'
-                    }`}>Instant</Text>
+                    <Text className="text-lg mb-0.5">⚡</Text>
+                    <Text style={{ color: deliveryType === 'instant' ? '#22c55e' : '#cbd5e1', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">Instant</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setDeliveryType('scheduled'); setOrderError(null); }}
-                    className={`flex-1 py-3 rounded-xl items-center border-2 ${
-                      deliveryType === 'scheduled' ? 'border-yellow-500 bg-yellow-500/10' : 'border-surface-200 bg-surface-100'
-                    }`}
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: deliveryType === 'scheduled' ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: deliveryType === 'scheduled' ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                      borderRadius: 4,
+                      paddingVertical: 12,
+                    }}
+                    className="flex-1 items-center"
                   >
-                    <Text className="text-xl mb-0.5">🕐</Text>
-                    <Text className={`text-sm font-bold ${
-                      deliveryType === 'scheduled' ? 'text-yellow-400' : 'text-surface-300'
-                    }`}>Scheduled</Text>
+                    <Text className="text-lg mb-0.5">🕐</Text>
+                    <Text style={{ color: deliveryType === 'scheduled' ? '#D4A017' : '#cbd5e1', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">Scheduled</Text>
                   </TouchableOpacity>
                 </View>
                 {deliveryType === 'scheduled' && (
                   <TextInput
-                    className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: scheduleFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: 'rgba(30,41,59,0.4)',
+                      color: '#fff',
+                      borderRadius: 8,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      fontSize: 14,
+                    }}
                     value={scheduledTime}
                     onChangeText={(v) => { setScheduledTime(v); setOrderError(null); }}
+                    onFocus={() => setScheduleFocused(true)}
+                    onBlur={() => setScheduleFocused(false)}
                     placeholder="e.g. tonight 9pm, within 3 hours"
                     placeholderTextColor="#475569"
                     autoCorrect={false}
@@ -315,14 +415,14 @@ export default function BuyerBrowseScreen() {
 
               {/* Summary */}
               {selectedRequest && getOrderAmount() > 0 && (
-                <View className="bg-surface-100 rounded-xl p-4 mb-4">
+                <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.45)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-5">
                   <View className="flex-row justify-between py-1">
-                    <Text className="text-surface-300 text-sm">POP Amount</Text>
-                    <Text className="text-white text-sm font-semibold">{getOrderAmount().toLocaleString()}</Text>
+                    <Text className="text-surface-300 text-xs font-bold uppercase">POP Amount</Text>
+                    <Text className="text-white text-xs font-bold">{getOrderAmount().toLocaleString()}</Text>
                   </View>
-                  <View className="flex-row justify-between py-1 border-t border-surface-200 mt-1">
-                    <Text className="text-surface-300 text-sm">Total PKR</Text>
-                    <Text className="text-primary-400 font-bold">
+                  <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }} className="flex-row justify-between py-2 mt-2">
+                    <Text className="text-[#D4A017] text-xs font-bold uppercase">Total PKR</Text>
+                    <Text className="text-[#D4A017] font-bold text-sm">
                       PKR {calcTotalPKR(getOrderAmount(), selectedRequest.ratePer10k).toLocaleString()}
                     </Text>
                   </View>
@@ -330,25 +430,39 @@ export default function BuyerBrowseScreen() {
               )}
 
               {orderError && (
-                <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
-                  <Text className="text-red-400 text-sm">{orderError}</Text>
+                <View className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-5">
+                  <Text className="text-red-400 text-xs font-medium">{orderError}</Text>
                 </View>
               )}
 
-              <View className="flex-row gap-3 pb-2">
+              <View className="flex-row gap-3 pb-4">
                 <TouchableOpacity
-                  className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(30,41,59,0.4)',
+                    paddingVertical: 14,
+                  }}
+                  className="flex-1 items-center"
                   onPress={() => setSelectedRequest(null)}
                   disabled={ordering}
                 >
-                  <Text className="text-white font-semibold">Cancel</Text>
+                  <Text style={{ letterSpacing: 1 }} className="text-white font-bold text-xs uppercase">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  className={`flex-1 rounded-xl py-4 items-center ${ordering ? 'bg-surface-200' : 'bg-primary-500'}`}
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: '#D4A017',
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                    paddingVertical: 14,
+                  }}
+                  className="flex-1 items-center"
                   onPress={handleConfirmOrder}
                   disabled={ordering}
                 >
-                  <Text className="text-white font-bold">
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }} className="uppercase">
                     {ordering ? 'Placing…' : 'Confirm Order'}
                   </Text>
                 </TouchableOpacity>

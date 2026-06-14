@@ -67,6 +67,14 @@ export default {
     plugins: [
       'expo-router',
       [
+        'expo-splash-screen',
+        {
+          image: './src/assets/splash.png',
+          resizeMode: 'contain',
+          backgroundColor: '#0f172a',
+        },
+      ],
+      [
         'expo-camera',
         {
           cameraPermission:

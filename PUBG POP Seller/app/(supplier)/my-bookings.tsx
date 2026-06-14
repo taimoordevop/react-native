@@ -30,16 +30,44 @@ import type { Booking, BookingStatus } from '@/shared/types';
 
 type FilterKey = 'active' | 'completed' | 'all';
 
-const STATUS_CFG: Record<BookingStatus, { label: string; text: string; bg: string }> = {
-  pending:         { label: 'Pending',        text: 'text-yellow-400',  bg: 'bg-yellow-500/20' },
-  accepted:        { label: 'Accepted',       text: 'text-blue-400',    bg: 'bg-blue-500/20' },
-  rejected:        { label: 'Rejected',       text: 'text-red-400',     bg: 'bg-red-500/20' },
-  in_progress:     { label: 'In Progress',    text: 'text-primary-400', bg: 'bg-primary-500/20' },
-  proof_submitted: { label: 'Proof Sent',     text: 'text-purple-400',  bg: 'bg-purple-500/20' },
-  verified:        { label: 'POP Verified',   text: 'text-green-400',   bg: 'bg-green-500/20' },
-  payout_submitted:{ label: 'Paid (Verify)',  text: 'text-indigo-400',  bg: 'bg-indigo-500/20' },
-  completed:       { label: 'Completed',      text: 'text-green-400',   bg: 'bg-green-500/20' },
+const STATUS_CFG: Record<BookingStatus, { label: string; text: string; bg: string; border: string }> = {
+  pending:         { label: 'Pending',        text: 'text-yellow-400',  bg: 'rgba(234, 179, 8, 0.08)',  border: 'rgba(234, 179, 8, 0.2)' },
+  accepted:        { label: 'Accepted',       text: 'text-blue-400',    bg: 'rgba(59, 130, 246, 0.08)',  border: 'rgba(59, 130, 246, 0.2)' },
+  rejected:        { label: 'Rejected',       text: 'text-red-400',     bg: 'rgba(239, 68, 68, 0.08)',  border: 'rgba(239, 68, 68, 0.2)' },
+  in_progress:     { label: 'In Progress',    text: 'text-[#D4A017]',   bg: 'rgba(212, 160, 23, 0.08)', border: 'rgba(212, 160, 23, 0.2)' },
+  proof_submitted: { label: 'Proof Sent',     text: 'text-purple-400',  bg: 'rgba(168, 85, 247, 0.08)', border: 'rgba(168, 85, 247, 0.2)' },
+  verified:        { label: 'POP Verified',   text: 'text-green-400',   bg: 'rgba(34, 197, 94, 0.08)',  border: 'rgba(34, 197, 94, 0.2)' },
+  payout_submitted:{ label: 'Paid (Verify)',  text: 'text-indigo-400',  bg: 'rgba(99, 102, 241, 0.08)', border: 'rgba(99, 102, 241, 0.2)' },
+  completed:       { label: 'Completed',      text: 'text-green-400',   bg: 'rgba(34, 197, 94, 0.08)',  border: 'rgba(34, 197, 94, 0.2)' },
 };
+
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CornerReticles() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+      <View style={{ position: 'absolute', top: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', top: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+    </View>
+  );
+}
 
 function BookingCard({
   booking,
@@ -51,13 +79,14 @@ function BookingCard({
   onZoomImage: (url: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const cfg = STATUS_CFG[booking.status];
+  const cfg = STATUS_CFG[booking.status] || STATUS_CFG.pending;
   const { data: request } = useRequest(booking.requestId);
 
   return (
     <TouchableOpacity
       onPress={() => setExpanded((v) => !v)}
-      className="bg-surface-100 rounded-2xl p-4 mb-3"
+      style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.2)', borderRadius: 4 }}
+      className="p-4 mb-3"
       activeOpacity={0.85}
     >
       {/* Header */}
@@ -66,31 +95,31 @@ function BookingCard({
           <Text className="text-white font-bold text-lg">
             {booking.bookedAmount.toLocaleString()} POP
           </Text>
-          <Text className="text-surface-300 text-xs">
+          <Text className="text-surface-300 text-xxs mt-0.5">
             {booking.deliveryTime === 'instant' ? '⚡ Instant delivery' : `🕐 ${booking.deliveryTime}`}
           </Text>
         </View>
         <View className="items-end gap-1">
-          <View className={`px-2 py-1 rounded-full ${cfg.bg}`}>
-            <Text className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</Text>
+          <View style={{ borderWidth: 1, borderColor: cfg.border, backgroundColor: cfg.bg, borderRadius: 2 }} className="px-2 py-0.5">
+            <Text style={{ letterSpacing: 0.5 }} className={`text-[10px] font-bold uppercase ${cfg.text}`}>{cfg.label}</Text>
           </View>
-          <Text className="text-surface-400 text-xs">{expanded ? '▲' : '▼ details'}</Text>
+          <Text style={{ letterSpacing: 0.5 }} className="text-surface-400 text-xxs uppercase mt-0.5">{expanded ? '▲ Hide' : '▼ Details'}</Text>
         </View>
       </View>
 
       {/* Expanded details */}
       {expanded && (
-        <View className="mt-2 pt-3 border-t border-surface-200">
+        <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }} className="mt-2 pt-3">
 
           {/* Accepted — show where to send */}
           {booking.status === 'accepted' && (
-            <View className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-3">
-              <Text className="text-blue-400 text-xs font-semibold mb-2">✓ Booking Accepted — Send POP now</Text>
+            <View style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', borderWidth: 1.5, borderColor: 'rgba(59, 130, 246, 0.3)', borderRadius: 4 }} className="p-3 mb-3">
+              <Text className="text-blue-400 text-xxs font-bold uppercase mb-2">✓ Booking Accepted — Send POP now</Text>
 
               {/* Buyer PUBG ID attached by seller — highest priority destination */}
               {booking.buyerPubgId ? (
                 <View className="mb-2">
-                  <Text className="text-surface-300 text-xs mb-0.5">Send POP to Buyer PUBG ID:</Text>
+                  <Text className="text-surface-300 text-xxs mb-1">Send POP to Buyer PUBG ID:</Text>
                   <View className="flex-row items-center justify-between">
                     <Text className="text-white font-bold text-base flex-1">{booking.buyerPubgId}</Text>
                     <TouchableOpacity
@@ -98,15 +127,16 @@ function BookingCard({
                         await Clipboard.setStringAsync(booking.buyerPubgId!);
                         Alert.alert('Copied!', `Buyer PUBG ID ${booking.buyerPubgId} copied.`);
                       }}
-                      className="bg-blue-500/20 border border-blue-500/40 rounded-lg px-2 py-1 ml-2"
+                      style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.3)', borderRadius: 2 }}
+                      className="px-2 py-1 ml-2"
                     >
-                      <Text className="text-blue-400 text-xs font-semibold">📋 Copy</Text>
+                      <Text style={{ letterSpacing: 0.5 }} className="text-blue-400 text-xxs font-bold uppercase">📋 Copy</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ) : request?.destinationPubgId ? (
                 <View className="mb-2">
-                  <Text className="text-surface-300 text-xs mb-0.5">Send to PUBG ID:</Text>
+                  <Text className="text-surface-300 text-xxs mb-1">Send to PUBG ID:</Text>
                   <View className="flex-row items-center justify-between">
                     <Text className="text-white font-bold text-base flex-1">{request.destinationPubgId}</Text>
                     <TouchableOpacity
@@ -114,9 +144,10 @@ function BookingCard({
                         await Clipboard.setStringAsync(request.destinationPubgId!);
                         Alert.alert('Copied!', `PUBG ID ${request.destinationPubgId} copied.`);
                       }}
-                      className="bg-green-500/20 border border-green-500/40 rounded-lg px-2 py-1 ml-2"
+                      style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.3)', borderRadius: 2 }}
+                      className="px-2 py-1 ml-2"
                     >
-                      <Text className="text-green-400 text-xs font-semibold">📋 Copy</Text>
+                      <Text style={{ letterSpacing: 0.5 }} className="text-green-400 text-xxs font-bold uppercase">📋 Copy</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -124,14 +155,14 @@ function BookingCard({
 
               {request?.deliveryDeadline && (
                 <View className="mb-1">
-                  <Text className="text-surface-300 text-xs mb-0.5">Deadline:</Text>
-                  <Text className="text-yellow-400 text-sm font-semibold">{request.deliveryDeadline}</Text>
+                  <Text className="text-surface-300 text-xxs mb-0.5">Deadline:</Text>
+                  <Text className="text-yellow-400 text-xs font-bold">{request.deliveryDeadline}</Text>
                 </View>
               )}
 
               <View>
-                <Text className="text-surface-300 text-xs mb-0.5">Your committed delivery:</Text>
-                <Text className="text-white text-sm">
+                <Text className="text-surface-300 text-xxs mb-0.5">Your committed delivery:</Text>
+                <Text className="text-white text-xs">
                   {booking.deliveryTime === 'instant' ? '⚡ Instantly' : `🕐 ${booking.deliveryTime}`}
                 </Text>
               </View>
@@ -141,54 +172,54 @@ function BookingCard({
           {/* Booking amount earned */}
           {request && (
             <View className="flex-row justify-between mb-2">
-              <Text className="text-surface-300 text-xs">You earn:</Text>
-              <Text className="text-green-400 text-sm font-bold">
+              <Text className="text-surface-300 text-xxs uppercase">You earn:</Text>
+              <Text className="text-green-400 text-xs font-bold">
                 PKR {Math.round((booking.bookedAmount / 10000) * request.ratePer10k).toLocaleString()}
               </Text>
             </View>
           )}
 
           {booking.status === 'proof_submitted' && (
-            <View className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 mb-3">
-              <Text className="text-purple-400 text-xs font-semibold">Proof submitted — awaiting seller verification.</Text>
+            <View style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.2)', borderRadius: 4 }} className="p-3 mb-3">
+              <Text className="text-purple-400 text-xxs font-bold uppercase">Proof submitted — awaiting seller verification.</Text>
               {booking.proofUrl && (
-                <Text className="text-surface-300 text-xs mt-1" numberOfLines={2}>{booking.proofUrl}</Text>
+                <Text className="text-surface-300 text-xxs mt-1" numberOfLines={2}>{booking.proofUrl}</Text>
               )}
             </View>
           )}
 
           {booking.status === 'rejected' && (
-            <View className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-2">
-              <Text className="text-red-400 text-xs">Booking was rejected by the seller.</Text>
+            <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', borderRadius: 4 }} className="p-3 mb-2">
+              <Text className="text-red-400 text-xxs uppercase font-semibold">Booking was rejected by the seller.</Text>
             </View>
           )}
 
           {booking.status === 'verified' && (
-            <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2">
-              <Text className="text-green-400 text-xs font-semibold">✓ POP Delivery Verified!</Text>
-              <Text className="text-surface-300 text-xs mt-1">
+            <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.08)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.2)', borderRadius: 4 }} className="p-3 mb-2">
+              <Text className="text-green-400 text-xxs font-bold uppercase">✓ POP Delivery Verified!</Text>
+              <Text className="text-surface-300 text-xxs leading-relaxed mt-1">
                 Seller has verified your POP delivery! Awaiting seller payout transfer.
               </Text>
             </View>
           )}
 
           {booking.status === 'payout_submitted' && (
-            <View className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 mb-3 gap-2">
-              <Text className="text-indigo-400 text-xs font-semibold">💰 Payout Proof Uploaded by Seller</Text>
-              <Text className="text-surface-300 text-xs leading-4">
+            <View style={{ backgroundColor: 'rgba(99, 102, 241, 0.08)', borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.3)', borderRadius: 4 }} className="p-3 mb-3 gap-2">
+              <Text className="text-indigo-400 text-xxs font-bold uppercase">💰 Payout Proof Uploaded by Seller</Text>
+              <Text className="text-surface-300 text-xxs leading-4">
                 Seller has completed the payout transfer and uploaded the proof. Please review the screenshot below and confirm your receipt.
               </Text>
 
               {/* Payout Screenshot Preview */}
               {booking.supplierPayoutProof && booking.supplierPayoutProof.length > 0 && (
                 <View className="my-1">
-                  <Text className="text-white text-xs font-semibold mb-1">Payout Screenshot:</Text>
+                  <Text className="text-white text-xxs font-bold uppercase mb-1">Payout Screenshot:</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
                     {booking.supplierPayoutProof.map((url, i) => (
                       <TouchableOpacity key={i} onPress={() => onZoomImage(url)} className="mr-2">
                         <Image
                           source={{ uri: url }}
-                          style={{ width: 100, height: 100, borderRadius: 8 }}
+                          style={{ width: 100, height: 100, borderRadius: 4 }}
                           resizeMode="cover"
                         />
                       </TouchableOpacity>
@@ -199,7 +230,14 @@ function BookingCard({
 
               {/* Confirm Receipt Button */}
               <TouchableOpacity
-                className="bg-green-600 rounded-lg py-2.5 items-center mt-1"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: '#D4A017',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                }}
                 onPress={() => {
                   if (!request?.buyerOrderId) {
                     Alert.alert('Error', 'No buyer order linked to this booking.');
@@ -225,26 +263,34 @@ function BookingCard({
                   );
                 }}
               >
-                <Text className="text-white font-bold text-xs">✓ Confirm Payment Received</Text>
+                <Text style={{ letterSpacing: 0.5 }} className="text-[#D4A017] font-bold text-xxs uppercase">✓ Confirm Payment Received</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {booking.status === 'completed' && (
-            <View className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-2">
-              <Text className="text-green-400 text-xs font-semibold">✓ Completed — payment received & released.</Text>
+            <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.08)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.2)', borderRadius: 4 }} className="p-3 mb-2">
+              <Text className="text-green-400 text-xxs font-bold uppercase">✓ Completed — payment received & released.</Text>
             </View>
           )}
 
           {/* Send POP → Submit proof button */}
           {booking.status === 'accepted' && (
             <TouchableOpacity
-              className="bg-green-600 rounded-xl py-3 items-center mt-1"
+              style={{
+                borderWidth: 1.5,
+                borderColor: '#D4A017',
+                borderRadius: 2,
+                backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                paddingVertical: 12,
+                alignItems: 'center',
+              }}
               onPress={onSubmitProof}
             >
-              <Text className="text-white font-bold">✓ Mark POP Sent + Submit Proof</Text>
+              <Text style={{ letterSpacing: 0.5 }} className="text-white font-bold text-xxs uppercase">✓ Mark POP Sent & Submit Proof</Text>
             </TouchableOpacity>
           )}
+
           {/* Direct Order Shortcut */}
           {booking.orderId && (
             <TouchableOpacity
@@ -254,10 +300,17 @@ function BookingCard({
                   params: { id: booking.orderId },
                 } as never)
               }
-              className="bg-primary-500/10 border border-primary-500/30 rounded-xl py-3.5 items-center justify-center flex-row gap-2 mt-3 mb-1"
+              style={{
+                backgroundColor: 'rgba(212, 160, 23, 0.08)',
+                borderWidth: 1,
+                borderColor: 'rgba(212, 160, 23, 0.3)',
+                borderRadius: 4,
+                paddingVertical: 12,
+              }}
+              className="items-center justify-center flex-row gap-2 mt-3"
             >
-              <Text className="text-primary-400 text-base">📦</Text>
-              <Text className="text-primary-400 font-bold text-sm">View Linked Order & Action Flow</Text>
+              <Text className="text-[#D4A017] text-sm">📦</Text>
+              <Text style={{ letterSpacing: 0.5 }} className="text-[#D4A017] font-bold text-xxs uppercase">View Linked Order & Action Flow</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -283,6 +336,10 @@ export default function SupplierMyBookingsScreen() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploading, setUploading] = useState<boolean>(false);
   const [sellerWhatsapp, setSellerWhatsapp] = useState<string>('');
+
+  // Input Focus States
+  const [urlFocused, setUrlFocused] = useState(false);
+  const [notesFocused, setNotesFocused] = useState(false);
 
   const filtered = bookings.filter((b) => {
     if (filter === 'active') return ['pending', 'accepted', 'in_progress', 'proof_submitted', 'verified', 'payout_submitted'].includes(b.status);
@@ -434,9 +491,12 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <View className="px-4 pt-4 pb-2">
-        <Text className="text-white text-2xl font-bold mb-4">My Bookings</Text>
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      {/* Background Overlay */}
+      <TacticalGrid />
+
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="px-4 pt-4 pb-3 bg-[#090d16]">
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold uppercase mb-4">My Bookings</Text>
         <View className="flex-row gap-2">
           {([
             { key: 'active' as FilterKey, label: 'Active' },
@@ -446,9 +506,23 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
             <TouchableOpacity
               key={f.key}
               onPress={() => setFilter(f.key)}
-              className={`rounded-full px-4 py-2 ${filter === f.key ? 'bg-green-600' : 'bg-surface-100'}`}
+              style={{
+                borderWidth: 1,
+                borderColor: filter === f.key ? '#D4A017' : 'rgba(255,255,255,0.06)',
+                backgroundColor: filter === f.key ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.3)',
+                borderRadius: 16,
+              }}
+              className="px-4.5 py-1.5"
             >
-              <Text className={`text-xs font-semibold ${filter === f.key ? 'text-white' : 'text-surface-300'}`}>
+              <Text
+                style={{
+                  color: filter === f.key ? '#D4A017' : '#94a3b8',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  letterSpacing: 0.5,
+                }}
+                className="uppercase"
+              >
                 {f.label}
               </Text>
             </TouchableOpacity>
@@ -458,17 +532,17 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#10b981" size="large" />
+          <ActivityIndicator color="#D4A017" size="large" />
         </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 32, flexGrow: 1 }} // eslint-disable-line react-native/no-inline-styles
+          contentContainerStyle={{ padding: 16, paddingTop: 12, paddingBottom: 32, flexGrow: 1 }}
           ListEmptyComponent={
-            <View className="flex-1 items-center justify-center pt-20">
-              <Text className="text-surface-300 text-base mb-1">No bookings yet</Text>
-              <Text className="text-surface-400 text-sm">Browse Requests to start earning</Text>
+            <View className="flex-1 items-center justify-center pt-24">
+              <Text style={{ letterSpacing: 0.5 }} className="text-surface-300 text-sm mb-1 uppercase">No bookings yet</Text>
+              <Text className="text-surface-400 text-xxs uppercase">Browse Requests to start earning</Text>
             </View>
           }
           renderItem={({ item }) => <BookingCard
@@ -499,28 +573,31 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
         animationType="slide"
         onRequestClose={() => setProofBooking(null)}
       >
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-surface rounded-t-3xl p-6 max-h-[85%]">
-            <Text className="text-white text-xl font-bold mb-1">Submit Proof</Text>
-            <Text className="text-surface-300 text-xs mb-5">
+        <View className="flex-1 justify-end bg-black/70">
+          <View style={{ backgroundColor: '#090d16', borderTopWidth: 2, borderTopColor: '#D4A017' }} className="p-6 max-h-[85%] relative">
+            <CornerReticles />
+            <TacticalGrid />
+
+            <Text style={{ letterSpacing: 1 }} className="text-white text-lg font-bold uppercase mb-1">Submit Proof</Text>
+            <Text className="text-surface-300 text-xxs mb-5 uppercase leading-relaxed">
               Choose your preferred method to submit delivery proof to the seller.
             </Text>
 
             <ScrollView className="mb-4" showsVerticalScrollIndicator={false}>
               
               {/* Option A: Upload Media */}
-              <View className="bg-surface-100 border border-primary-500/20 rounded-2xl p-4 mb-4">
-                <Text className="text-primary-400 font-bold text-sm mb-1">Option A: In-App Upload (Primary)</Text>
-                <Text className="text-surface-300 text-xs mb-3">
+              <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
+                <Text className="text-[#D4A017] font-bold text-xs uppercase mb-1">Option A: In-App Upload (Primary)</Text>
+                <Text className="text-surface-300 text-[10px] uppercase leading-relaxed mb-3">
                   Upload one or more screen recordings or screenshots of the transaction directly.
                 </Text>
 
                 {selectedMedia.length > 0 && (
                   <View className="mb-3 gap-2">
                     {selectedMedia.map((item, idx) => (
-                      <View key={idx} className="bg-surface-200 border border-green-500/20 rounded-xl p-3 flex-row items-center justify-between">
+                      <View key={idx} style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.2)', borderRadius: 4 }} className="p-3 flex-row items-center justify-between">
                         <View className="flex-1 mr-2">
-                          <Text className="text-green-400 text-[10px] font-semibold mb-0.5">
+                          <Text className="text-green-400 text-[9px] font-bold uppercase mb-0.5">
                             ✓ {item.type === 'video' ? '🎬 Video' : '📸 Image'} #{idx + 1}
                           </Text>
                           <Text className="text-white text-xs" numberOfLines={1}>
@@ -528,12 +605,19 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
                           </Text>
                         </View>
                         <TouchableOpacity
-                          className="bg-surface-100 rounded-lg px-2 py-1.5 border border-surface-300"
+                          style={{
+                            borderWidth: 1,
+                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderRadius: 2,
+                            paddingHorizontal: 8,
+                            paddingVertical: 6,
+                          }}
                           onPress={() => {
                             setSelectedMedia((prev) => prev.filter((_, i) => i !== idx));
                           }}
                         >
-                          <Text className="text-red-400 text-xs font-bold">Remove</Text>
+                          <Text style={{ letterSpacing: 0.5 }} className="text-red-400 text-[10px] font-bold uppercase">Remove</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -541,42 +625,73 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
                 )}
 
                 <TouchableOpacity
-                  className="bg-primary-500/10 border border-primary-500/40 rounded-xl py-3 items-center flex-row justify-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(212, 160, 23, 0.08)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(212, 160, 23, 0.3)',
+                    borderRadius: 4,
+                    paddingVertical: 12,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    gap: 8,
+                  }}
                   onPress={handlePickFile}
                 >
-                  <Text className="text-primary-400 font-bold text-sm">
-                    {selectedMedia.length > 0 ? '➕ Add More Videos/Images' : '📁 Select Videos/Images from Gallery'}
+                  <Text style={{ color: '#D4A017', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">
+                    {selectedMedia.length > 0 ? '➕ Add More Videos/Images' : '📁 Select Videos/Images'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* Option B: WhatsApp Fallback */}
-              <View className="bg-surface-100 border border-green-500/20 rounded-2xl p-4 mb-4">
-                <Text className="text-green-400 font-bold text-sm mb-1">Option B: Send via WhatsApp (Fallback)</Text>
-                <Text className="text-surface-300 text-xs mb-3">
+              <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.15)', borderRadius: 4 }} className="p-4 mb-4">
+                <Text className="text-green-400 font-bold text-xs uppercase mb-1">Option B: Send via WhatsApp (Fallback)</Text>
+                <Text className="text-surface-300 text-[10px] uppercase leading-relaxed mb-3">
                   Open WhatsApp with a pre-filled transaction template and send proof directly to the seller.
                 </Text>
 
                 <TouchableOpacity
-                  className="bg-green-500/10 border border-green-500/40 rounded-xl py-3 items-center flex-row justify-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(34, 197, 94, 0.3)',
+                    borderRadius: 4,
+                    paddingVertical: 12,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    gap: 8,
+                  }}
                   onPress={handleSendWhatsApp}
                 >
                   <Text className="text-green-400 text-sm">💬</Text>
-                  <Text className="text-green-400 font-bold text-sm">Open WhatsApp &amp; Send</Text>
+                  <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 }} className="uppercase">Open WhatsApp &amp; Send</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Option C: Paste URL */}
               {selectedMedia.length === 0 && (
-                <View className="bg-surface-100 border border-surface-200 rounded-2xl p-4 mb-4">
-                  <Text className="text-white font-bold text-sm mb-1">Option C: Paste External Link</Text>
-                  <Text className="text-surface-300 text-xs mb-3">
+                <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="p-4 mb-4">
+                  <Text className="text-white font-bold text-xs uppercase mb-1">Option C: Paste External Link</Text>
+                  <Text className="text-surface-300 text-[10px] uppercase leading-relaxed mb-3">
                     Paste a link to your screen recording (Google Drive, YouTube, etc.)
                   </Text>
                   <TextInput
-                    className="bg-surface-200 text-white rounded-xl px-4 py-3 text-xs border border-surface-300"
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: urlFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: 'rgba(30,41,59,0.4)',
+                      color: '#fff',
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      fontSize: 12,
+                    }}
                     value={proofUrl}
                     onChangeText={(v) => { setProofUrl(v); setProofError(null); }}
+                    onFocus={() => setUrlFocused(true)}
+                    onBlur={() => setUrlFocused(false)}
                     placeholder="https://drive.google.com/..."
                     placeholderTextColor="#475569"
                     autoCapitalize="none"
@@ -587,56 +702,81 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
 
               {/* Notes */}
               <View className="mb-4">
-                <Text className="text-surface-300 text-xs mb-1.5">Notes (optional)</Text>
+                <Text style={{ letterSpacing: 0.5 }} className="text-surface-300 text-[10px] font-bold uppercase mb-1.5">Notes (optional)</Text>
                 <TextInput
-                  className="bg-surface-100 text-white rounded-xl px-4 py-3 text-xs"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: notesFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(30,41,59,0.4)',
+                    color: '#fff',
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 12,
+                    textAlignVertical: 'top',
+                  }}
                   value={proofNotes}
                   onChangeText={setProofNotes}
+                  onFocus={() => setNotesFocused(true)}
+                  onBlur={() => setNotesFocused(false)}
                   placeholder="Any notes or remarks for the seller..."
                   placeholderTextColor="#475569"
                   multiline
                   numberOfLines={2}
-                  style={{ textAlignVertical: 'top' }}
                 />
               </View>
 
               {/* Upload Progress */}
               {uploading && (
-                <View className="bg-surface-100 rounded-2xl p-4 mb-4 border border-surface-200">
+                <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.45)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 4 }} className="p-4 mb-4">
                   <View className="flex-row justify-between mb-2">
                     <Text className="text-white text-xs font-semibold">Uploading proof media...</Text>
-                    <Text className="text-primary-400 text-xs font-bold">{uploadProgress}%</Text>
+                    <Text className="text-[#D4A017] text-xs font-bold">{uploadProgress}%</Text>
                   </View>
-                  <View className="bg-surface-200 h-2 rounded-full overflow-hidden">
+                  <View className="bg-surface-200 h-1.5 rounded-full overflow-hidden">
                     <View
-                      className="bg-primary-500 h-full rounded-full"
-                      style={{ width: `${uploadProgress}%` }}
+                      style={{ width: `${uploadProgress}%`, backgroundColor: '#D4A017' }}
+                      className="h-full rounded-full"
                     />
                   </View>
                 </View>
               )}
 
               {proofError && (
-                <View className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 mb-4">
-                  <Text className="text-red-400 text-xs">{proofError}</Text>
+                <View className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+                  <Text className="text-red-400 text-xs font-medium">{proofError}</Text>
                 </View>
               )}
             </ScrollView>
 
-            <View className="flex-row gap-3">
+            <View className="flex-row gap-3 pb-4">
               <TouchableOpacity
-                className="flex-1 bg-surface-200 rounded-xl py-4 items-center"
+                style={{
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.08)',
+                  borderRadius: 4,
+                  backgroundColor: 'rgba(30,41,59,0.4)',
+                  paddingVertical: 14,
+                }}
+                className="flex-1 items-center"
                 onPress={() => setProofBooking(null)}
                 disabled={uploading || submitting}
               >
-                <Text className="text-white font-semibold">Cancel</Text>
+                <Text style={{ letterSpacing: 1 }} className="text-white font-bold text-xs uppercase">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`flex-1 rounded-xl py-4 items-center ${(uploading || submitting) ? 'bg-surface-200' : 'bg-green-600'}`}
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: '#D4A017',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(212, 160, 23, 0.15)',
+                  paddingVertical: 14,
+                }}
+                className="flex-1 items-center"
                 onPress={handleSubmitProof}
                 disabled={uploading || submitting}
               >
-                <Text className="text-white font-bold">
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }} className="uppercase">
                   {uploading ? 'Uploading…' : submitting ? 'Submitting…' : 'Submit Proof'}
                 </Text>
               </TouchableOpacity>
@@ -654,16 +794,17 @@ Hello! I have successfully delivered the committed POP to the Buyer's PUBG ID. S
       >
         <View className="flex-1 bg-black/90 items-center justify-center">
           <TouchableOpacity
-            className="absolute top-10 right-4 px-3 py-2 rounded-full bg-black/60 z-10"
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20 }}
+            className="absolute top-10 right-4 px-4 py-2 z-10"
             onPress={() => setViewerImage(null)}
           >
-            <Text className="text-white text-sm">Close</Text>
+            <Text style={{ letterSpacing: 1 }} className="text-white text-xs font-bold uppercase">Close</Text>
           </TouchableOpacity>
           {viewerImage && (
             <TouchableOpacity activeOpacity={1} onPress={() => setViewerImage(null)}>
               <Image
                 source={{ uri: viewerImage }}
-                style={{ width: 350, height: 600, borderRadius: 12 }}
+                style={{ width: 350, height: 600, borderRadius: 4 }}
                 resizeMode="contain"
               />
             </TouchableOpacity>

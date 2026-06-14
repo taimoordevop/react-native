@@ -64,8 +64,8 @@ service cloud.firestore {
       // Admins can update any user field (for moderation / manual role assignment)
       allow update: if isAdmin();
 
-      // No client-side deletes
-      allow delete: if false;
+      // Admins can delete users
+      allow delete: if isAdmin();
     }
 
     // ── Listings collection ───────────────────────────────────────────────────

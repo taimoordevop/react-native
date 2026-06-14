@@ -19,6 +19,34 @@ import { orderService } from '@/features/orders/services/orderService';
 
 const PAYMENT_METHODS = ['JazzCash', 'EasyPaisa', 'Bank Transfer', 'Cash', 'WhatsApp'];
 
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CornerReticles() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+      <View style={{ position: 'absolute', top: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', top: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, left: 16, width: 16, height: 16, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: 16, right: 16, width: 16, height: 16, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017', opacity: 0.5 }} />
+    </View>
+  );
+}
+
 export default function LogManualDealScreen() {
   const { user } = useAuthStore();
   const logTransaction = useLogTransaction();
@@ -38,6 +66,12 @@ export default function LogManualDealScreen() {
   const [proofUri, setProofUri]         = useState<string | null>(null);
   const [uploading, setUploading]       = useState(false);
   const [error, setError]               = useState<string | null>(null);
+
+  // Focus states
+  const [popFocused, setPopFocused] = useState(false);
+  const [buyerFocused, setBuyerFocused] = useState(false);
+  const [supplierFocused, setSupplierFocused] = useState(false);
+  const [descFocused, setDescFocused] = useState(false);
 
   const pop    = parseInt(popAmount.replace(/,/g, ''), 10) || 0;
   const bRate  = parseFloat(buyerRate)   || 0;
@@ -133,36 +167,49 @@ export default function LogManualDealScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16]">
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
-        <TouchableOpacity onPress={() => router.back()} className="mr-3">
-          <Text className="text-yellow-400 text-base">← Back</Text>
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="flex-row items-center px-4 py-3 bg-[#090d16]">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-sm font-bold uppercase">← BACK</Text>
         </TouchableOpacity>
-        <Text className="text-white text-lg font-bold flex-1">Log Manual Deal</Text>
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold flex-1 uppercase">LOG MANUAL DEAL</Text>
       </View>
 
       <ScrollView
-        /* eslint-disable-next-line react-native/no-inline-styles */
         contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Background Overlay */}
+        <TacticalGrid />
+        <CornerReticles />
+
         {/* Info banner */}
-        <View className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-5">
-          <Text className="text-yellow-400 font-semibold mb-1">📱 WhatsApp / Offline Deal</Text>
-          <Text className="text-surface-300 text-sm leading-5">
-            Log deals made outside the app — WhatsApp, phone, or in-person.
-            Profit is auto-calculated from rates.
+        <View style={{ backgroundColor: 'rgba(212, 160, 23, 0.08)', borderWidth: 1.5, borderColor: 'rgba(212, 160, 23, 0.3)', borderRadius: 4 }} className="p-4 mb-5">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] font-bold mb-1 uppercase">📱 WhatsApp / Offline Deal</Text>
+          <Text className="text-surface-300 text-xxs leading-relaxed">
+            Log deals made outside the app — WhatsApp, phone, or in-person. Profit is auto-calculated from rates.
           </Text>
         </View>
 
         {/* POP Amount */}
         <View className="mb-4">
-          <Text className="text-surface-300 text-sm mb-2">POP Amount *</Text>
+          <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">POP AMOUNT *</Text>
           <TextInput
-            className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+            style={{
+              borderWidth: 1.5,
+              borderColor: popFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+              backgroundColor: 'rgba(30,41,59,0.4)',
+              color: '#fff',
+              borderRadius: 8,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 15,
+            }}
             value={popAmount}
             onChangeText={(v) => { setPopAmount(v); setError(null); }}
+            onFocus={() => setPopFocused(true)}
+            onBlur={() => setPopFocused(false)}
             placeholder="e.g. 50000"
             placeholderTextColor="#475569"
             keyboardType="numeric"
@@ -172,22 +219,44 @@ export default function LogManualDealScreen() {
         {/* Rates row */}
         <View className="flex-row gap-3 mb-4">
           <View className="flex-1">
-            <Text className="text-surface-300 text-sm mb-2">Buyer Rate / 10k *</Text>
+            <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Buyer Rate / 10k *</Text>
             <TextInput
-              className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+              style={{
+                borderWidth: 1.5,
+                borderColor: buyerFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                backgroundColor: 'rgba(30,41,59,0.4)',
+                color: '#fff',
+                borderRadius: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+              }}
               value={buyerRate}
               onChangeText={(v) => { setBuyerRate(v); setError(null); }}
+              onFocus={() => setBuyerFocused(true)}
+              onBlur={() => setBuyerFocused(false)}
               placeholder="e.g. 280"
               placeholderTextColor="#475569"
               keyboardType="numeric"
             />
           </View>
           <View className="flex-1">
-            <Text className="text-surface-300 text-sm mb-2">Supplier Rate / 10k *</Text>
+            <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Supplier Rate / 10k *</Text>
             <TextInput
-              className="bg-surface-100 text-white rounded-xl px-4 py-3 text-base"
+              style={{
+                borderWidth: 1.5,
+                borderColor: supplierFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                backgroundColor: 'rgba(30,41,59,0.4)',
+                color: '#fff',
+                borderRadius: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+              }}
               value={supplierRate}
               onChangeText={(v) => { setSupplierRate(v); setError(null); }}
+              onFocus={() => setSupplierFocused(true)}
+              onBlur={() => setSupplierFocused(false)}
               placeholder="e.g. 260"
               placeholderTextColor="#475569"
               keyboardType="numeric"
@@ -197,20 +266,20 @@ export default function LogManualDealScreen() {
 
         {/* Live profit preview */}
         {pop > 0 && bRate > 0 && sRate > 0 && (
-          <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-4">
-            <View className="flex-row justify-between mb-1">
-              <Text className="text-surface-300 text-sm">Revenue (from buyer)</Text>
-              <Text className="text-white font-semibold">PKR {revenue.toLocaleString()}</Text>
+          <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.08)', borderWidth: 1.5, borderColor: 'rgba(34, 197, 94, 0.3)', borderRadius: 4 }} className="p-4 mb-4">
+            <View className="flex-row justify-between mb-1.5">
+              <Text className="text-surface-300 text-xs uppercase">Revenue (from buyer)</Text>
+              <Text className="text-white text-xs font-semibold">PKR {revenue.toLocaleString()}</Text>
             </View>
-            <View className="flex-row justify-between mb-1">
-              <Text className="text-surface-300 text-sm">Cost (to supplier)</Text>
-              <Text className="text-red-400 font-semibold">
+            <View className="flex-row justify-between mb-1.5">
+              <Text className="text-surface-300 text-xs uppercase">Cost (to supplier)</Text>
+              <Text className="text-red-400 text-xs font-semibold">
                 PKR {Math.round((sRate / 10_000) * pop).toLocaleString()}
               </Text>
             </View>
-            <View className="h-px bg-surface-200 my-2" />
-            <View className="flex-row justify-between">
-              <Text className="text-green-400 font-bold text-base">Net Profit</Text>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} className="h-px my-2" />
+            <View className="flex-row justify-between items-center">
+              <Text className="text-green-400 font-bold text-xs uppercase">Net Profit</Text>
               <Text className="text-green-400 font-bold text-lg">
                 PKR {profit.toLocaleString()}
               </Text>
@@ -220,39 +289,57 @@ export default function LogManualDealScreen() {
 
         {/* Description */}
         <View className="mb-4">
-          <Text className="text-surface-300 text-sm mb-2">Description *</Text>
+          <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Description *</Text>
           <TextInput
-            className="bg-surface-100 text-white rounded-xl px-4 py-3 text-sm"
+            style={{
+              borderWidth: 1.5,
+              borderColor: descFocused ? '#D4A017' : 'rgba(255,255,255,0.08)',
+              backgroundColor: 'rgba(30,41,59,0.4)',
+              color: '#fff',
+              borderRadius: 8,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 14,
+              minHeight: 64,
+              textAlignVertical: 'top',
+            }}
             value={description}
             onChangeText={(v) => { setDescription(v); setError(null); }}
+            onFocus={() => setDescFocused(true)}
+            onBlur={() => setDescFocused(false)}
             placeholder="e.g. WhatsApp deal with Ahmed — 50k POP"
             placeholderTextColor="#475569"
             multiline
             numberOfLines={2}
-            /* eslint-disable-next-line react-native/no-inline-styles */
-            style={{ minHeight: 64, textAlignVertical: 'top' }}
           />
         </View>
 
         {/* Payment method */}
         <View className="mb-4">
-          <Text className="text-surface-300 text-sm mb-2">Payment Method</Text>
+          <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Payment Method</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View className="flex-row gap-2 pb-1">
               {PAYMENT_METHODS.map((m) => (
                 <TouchableOpacity
                   key={m}
                   onPress={() => setPayMethod(m)}
-                  className={`px-4 py-2 rounded-xl border ${
-                    payMethod === m
-                      ? 'bg-yellow-500 border-yellow-500'
-                      : 'bg-surface-100 border-surface-200'
-                  }`}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: payMethod === m ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: payMethod === m ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                    borderRadius: 4,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                  }}
                 >
                   <Text
-                    className={`text-sm font-semibold ${
-                      payMethod === m ? 'text-white' : 'text-surface-300'
-                    }`}
+                    style={{
+                      color: payMethod === m ? '#D4A017' : '#cbd5e1',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      letterSpacing: 1,
+                    }}
+                    className="uppercase"
                   >
                     {m}
                   </Text>
@@ -264,18 +351,18 @@ export default function LogManualDealScreen() {
 
         {/* Proof screenshot (optional) */}
         <View className="mb-6">
-          <Text className="text-surface-300 text-sm mb-2">Proof Screenshot (optional)</Text>
+          <Text style={{ letterSpacing: 1 }} className="text-surface-300 text-xs font-semibold uppercase mb-2">Proof Screenshot (optional)</Text>
           {proofUri ? (
             <View className="relative">
               <Image
                 source={{ uri: proofUri }}
-                /* eslint-disable-next-line react-native/no-inline-styles */
-                style={{ width: '100%', height: 160, borderRadius: 12 }}
+                style={{ width: '100%', height: 160, borderRadius: 4 }}
                 resizeMode="cover"
               />
               <TouchableOpacity
                 onPress={() => setProofUri(null)}
-                className="absolute top-2 right-2 bg-red-500 rounded-full w-7 h-7 items-center justify-center"
+                style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)' }}
+                className="absolute top-2 right-2 rounded-full w-7 h-7 items-center justify-center"
               >
                 <Text className="text-white text-xs font-bold">✕</Text>
               </TouchableOpacity>
@@ -283,38 +370,57 @@ export default function LogManualDealScreen() {
           ) : (
             <TouchableOpacity
               onPress={pickProof}
-              className="border-2 border-dashed border-surface-300 rounded-2xl py-6 items-center"
+              style={{
+                borderWidth: 1.5,
+                borderStyle: 'dashed',
+                borderColor: 'rgba(212,160,23,0.3)',
+                backgroundColor: 'rgba(30,41,59,0.25)',
+                borderRadius: 4,
+                paddingVertical: 24,
+                alignItems: 'center',
+              }}
             >
               <Text className="text-surface-300 text-2xl mb-1">📷</Text>
-              <Text className="text-surface-300 text-sm">Attach screenshot</Text>
+              <Text style={{ letterSpacing: 1 }} className="text-surface-400 text-xxs font-bold uppercase">Attach screenshot</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Error */}
         {error && (
-          <View className="bg-red-500/20 border border-red-500/30 rounded-xl p-3 mb-4">
-            <Text className="text-red-400 text-sm">{error}</Text>
+          <View className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+            <Text className="text-red-400 text-xs font-medium">{error}</Text>
           </View>
         )}
 
         {/* Submit */}
         <TouchableOpacity
-          className={`rounded-2xl py-4 items-center ${
-            logTransaction.isPending || uploading ? 'bg-surface-200' : 'bg-yellow-500'
-          }`}
+          style={{
+            borderWidth: 1.5,
+            borderColor: '#D4A017',
+            borderRadius: 2,
+            backgroundColor: 'rgba(212, 160, 23, 0.15)',
+            paddingVertical: 16,
+            alignItems: 'center',
+            shadowColor: '#D4A017',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
+            elevation: 4,
+          }}
           onPress={handleSubmit}
           disabled={logTransaction.isPending || uploading}
+          activeOpacity={0.8}
         >
           {logTransaction.isPending || uploading ? (
             <View className="flex-row items-center gap-2">
-              <ActivityIndicator color="#fff" size="small" />
-              <Text className="text-white font-bold">
+              <ActivityIndicator color="#D4A017" size="small" />
+              <Text style={{ color: '#D4A017', fontWeight: 'bold', fontSize: 13, letterSpacing: 1.5 }} className="uppercase">
                 {uploading ? 'Uploading…' : 'Saving…'}
               </Text>
             </View>
           ) : (
-            <Text className="text-white font-bold text-base">
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1.5 }} className="uppercase">
               ✓ Log Deal — PKR {profit > 0 ? profit.toLocaleString() : '0'} Profit
             </Text>
           )}

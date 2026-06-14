@@ -23,6 +23,23 @@ const TYPE_CONFIG: Record<TransactionType, { label: string; color: string; icon:
   commission:      { label: 'Commission',        color: 'text-surface-300', icon: '🏦' },
 };
 
+function TacticalGrid() {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(12)].map((_, i) => (
+          <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+      <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function TransactionRow({ txn }: { txn: Transaction }) {
   const cfg = TYPE_CONFIG[txn.type] || { label: txn.type, color: 'text-white', icon: '⚡' };
   const dateMs =
@@ -34,9 +51,9 @@ function TransactionRow({ txn }: { txn: Transaction }) {
     : '—';
 
   return (
-    <View className="py-3 border-b border-surface-200">
+    <View style={{ borderBottomColor: 'rgba(255,255,255,0.06)' }} className="py-3 border-b">
       <View className="flex-row items-center">
-        <View className="w-9 h-9 rounded-full bg-surface-200 items-center justify-center mr-3">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.6)', borderRadius: 18 }} className="w-9 h-9 items-center justify-center mr-3">
           <Text className="text-base">{cfg.icon}</Text>
         </View>
         <View className="flex-1">
@@ -63,7 +80,7 @@ function TransactionRow({ txn }: { txn: Transaction }) {
           >
             {txn.profitPKR >= 0 ? '+' : ''}PKR {txn.profitPKR.toLocaleString()}
           </Text>
-          <Text className="text-surface-400 text-xs">
+          <Text className="text-surface-400 text-xs capitalize">
             {txn.paymentMethod ? txn.paymentMethod.replace(/_/g, ' ') : '—'}
           </Text>
         </View>
@@ -71,7 +88,7 @@ function TransactionRow({ txn }: { txn: Transaction }) {
 
       {/* Per-Order Rate Breakdown */}
       {txn.popAmount !== undefined && (txn.buyerRate !== undefined || txn.supplierRate !== undefined) && (
-        <View className="mt-2 bg-surface-200/40 rounded-xl p-2.5 flex-row justify-between items-center">
+        <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.45)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.15)', borderRadius: 4 }} className="mt-2 p-2.5 flex-row justify-between items-center">
           <Text className="text-surface-400 text-[10px] font-medium">
             POP: <Text className="text-white">{txn.popAmount.toLocaleString()}</Text>
           </Text>
@@ -112,95 +129,113 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
+    <SafeAreaView className="flex-1 bg-[#090d16] relative">
+      {/* Background Overlay */}
+      <TacticalGrid />
+
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-surface-200">
-        <TouchableOpacity onPress={() => router.back()} className="mr-3">
-          <Text className="text-yellow-400 text-base">← Back</Text>
+      <View style={{ borderBottomWidth: 1.5, borderBottomColor: 'rgba(212, 160, 23, 0.2)' }} className="flex-row items-center px-4 py-3 bg-[#090d16]">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
+          <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] text-sm font-bold uppercase">← BACK</Text>
         </TouchableOpacity>
-        <Text className="text-white text-lg font-bold flex-1">Analytics</Text>
+        <Text style={{ letterSpacing: 1 }} className="text-white text-base font-bold flex-1 uppercase">ANALYTICS</Text>
         <TouchableOpacity
+          style={{
+            borderWidth: 1.5,
+            borderColor: '#D4A017',
+            borderRadius: 2,
+            backgroundColor: 'rgba(212, 160, 23, 0.15)',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}
           onPress={() => router.push('/(seller)/log-deal' as never)}
-          className="bg-yellow-500 rounded-xl px-3 py-2"
         >
-          <Text className="text-white font-bold text-sm">+ Log Deal</Text>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 10, letterSpacing: 1 }} className="uppercase">+ Log Deal</Text>
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#f59e0b" size="large" />
+          <ActivityIndicator color="#D4A017" size="large" />
         </View>
       ) : (
         <ScrollView
-          /* eslint-disable-next-line react-native/no-inline-styles */
           contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor="#f59e0b"
+              tintColor="#D4A017"
             />
           }
         >
           {/* Top 4 summary cards */}
           <View className="flex-row gap-3 mb-3">
-            <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-yellow-500/30">
-              <Text className="text-yellow-400 text-xs mb-1">Today's Profit</Text>
+            <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(212, 160, 23, 0.3)', borderRadius: 4 }} className="flex-1 p-4">
+              <Text style={{ letterSpacing: 0.5 }} className="text-[#D4A017] text-xxs font-bold uppercase mb-1">Today's Profit</Text>
               <Text className="text-white text-lg font-bold">
                 PKR {(data?.today.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
+              <Text className="text-surface-400 text-[9px] mt-1 font-medium uppercase">
                 {data?.today.transactionCount ?? 0} deals
               </Text>
             </View>
-            <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-primary-500/30">
-              <Text className="text-primary-400 text-xs mb-1">This Week</Text>
+            <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.3)', borderRadius: 4 }} className="flex-1 p-4">
+              <Text style={{ letterSpacing: 0.5 }} className="text-blue-400 text-xxs font-bold uppercase mb-1">This Week</Text>
               <Text className="text-white text-lg font-bold">
                 PKR {(data?.thisWeek.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
+              <Text className="text-surface-400 text-[9px] mt-1 font-medium uppercase">
                 {data?.thisWeek.transactionCount ?? 0} deals
               </Text>
             </View>
           </View>
 
           <View className="flex-row gap-3 mb-4">
-            <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-green-500/30">
-              <Text className="text-green-400 text-xs mb-1">This Month</Text>
+            <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.3)', borderRadius: 4 }} className="flex-1 p-4">
+              <Text style={{ letterSpacing: 0.5 }} className="text-green-400 text-xxs font-bold uppercase mb-1">This Month</Text>
               <Text className="text-white text-lg font-bold">
                 PKR {(data?.thisMonth.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
+              <Text className="text-surface-400 text-[9px] mt-1 font-medium uppercase">
                 {data?.thisMonth.transactionCount ?? 0} deals
               </Text>
             </View>
-            <View className="flex-1 bg-surface-100 rounded-2xl p-4 border border-purple-500/30">
-              <Text className="text-purple-400 text-xs mb-1">Lifetime Profit</Text>
+            <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)', borderRadius: 4 }} className="flex-1 p-4">
+              <Text style={{ letterSpacing: 0.5 }} className="text-purple-400 text-xxs font-bold uppercase mb-1">Lifetime Profit</Text>
               <Text className="text-white text-lg font-bold">
                 PKR {(data?.all.totalProfit ?? 0).toLocaleString()}
               </Text>
-              <Text className="text-surface-400 text-[10px] mt-1 font-medium">
+              <Text className="text-surface-400 text-[9px] mt-1 font-medium uppercase">
                 {data?.all.transactionCount ?? 0} deals
               </Text>
             </View>
           </View>
 
           {/* Period selector + expanded card */}
-          <View className="bg-surface-100 rounded-2xl p-4 mb-4">
+          <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="p-4 mb-4">
             <View className="flex-row gap-2 mb-4">
               {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
                 <TouchableOpacity
                   key={p}
                   onPress={() => setPeriod(p)}
-                  className={`flex-1 py-2 rounded-xl items-center ${
-                    period === p ? 'bg-yellow-500' : 'bg-surface-200'
-                  }`}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: period === p ? '#D4A017' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: period === p ? 'rgba(212, 160, 23, 0.15)' : 'rgba(30,41,59,0.4)',
+                    borderRadius: 4,
+                    paddingVertical: 10,
+                  }}
+                  className="flex-1 items-center"
                 >
                   <Text
-                    className={`text-xs font-semibold ${
-                      period === p ? 'text-white' : 'text-surface-300'
-                    }`}
+                    style={{
+                      color: period === p ? '#D4A017' : '#cbd5e1',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      letterSpacing: 0.5,
+                    }}
+                    className="uppercase"
                   >
                     {PERIOD_LABELS[p]}
                   </Text>
@@ -210,40 +245,40 @@ export default function AnalyticsScreen() {
 
             <View className="flex-row justify-around">
               <View className="items-center">
-                <Text className="text-green-400 text-2xl font-bold">
+                <Text className="text-green-400 text-xl font-bold">
                   PKR {summary.totalProfit.toLocaleString()}
                 </Text>
-                <Text className="text-surface-400 text-xs mt-1">Net Profit</Text>
+                <Text className="text-surface-400 text-[10px] font-bold uppercase mt-1">Net Profit</Text>
               </View>
-              <View className="w-px bg-surface-200" />
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} className="w-px" />
               <View className="items-center">
-                <Text className="text-white text-2xl font-bold">
+                <Text className="text-white text-xl font-bold">
                   PKR {summary.totalRevenue.toLocaleString()}
                 </Text>
-                <Text className="text-surface-400 text-xs mt-1">Revenue</Text>
+                <Text className="text-surface-400 text-[10px] font-bold uppercase mt-1">Revenue</Text>
               </View>
-              <View className="w-px bg-surface-200" />
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} className="w-px" />
               <View className="items-center">
-                <Text className="text-primary-400 text-2xl font-bold">
+                <Text className="text-blue-400 text-xl font-bold">
                   {summary.transactionCount}
                 </Text>
-                <Text className="text-surface-400 text-xs mt-1">Deals</Text>
+                <Text className="text-surface-400 text-[10px] font-bold uppercase mt-1">Deals</Text>
               </View>
             </View>
           </View>
 
           {/* Recent transactions */}
-          <View className="bg-surface-100 rounded-2xl px-4 pt-4 pb-2 mb-4">
+          <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 4 }} className="px-4 pt-4 pb-2 mb-4">
             <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-white font-semibold">Recent Transactions</Text>
-              <Text className="text-surface-400 text-xs">
+              <Text className="text-white font-bold uppercase text-xs">Recent Transactions</Text>
+              <Text className="text-surface-400 text-xxs uppercase">
                 {data?.recent.length ?? 0} shown
               </Text>
             </View>
             {(data?.recent.length ?? 0) === 0 ? (
               <View className="py-8 items-center">
                 <Text className="text-3xl mb-2">📊</Text>
-                <Text className="text-surface-300 text-sm text-center">
+                <Text className="text-surface-300 text-xs text-center leading-relaxed">
                   No transactions yet.{'\n'}Log a deal or complete an order.
                 </Text>
               </View>
@@ -256,13 +291,20 @@ export default function AnalyticsScreen() {
 
           {/* Log deal CTA */}
           <TouchableOpacity
-            className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl py-4 items-center"
+            style={{
+              backgroundColor: 'rgba(212, 160, 23, 0.08)',
+              borderWidth: 1.5,
+              borderColor: 'rgba(212, 160, 23, 0.3)',
+              borderRadius: 4,
+              paddingVertical: 16,
+              alignItems: 'center',
+            }}
             onPress={() => router.push('/(seller)/log-deal' as never)}
           >
-            <Text className="text-yellow-400 font-semibold">
+            <Text style={{ letterSpacing: 1 }} className="text-[#D4A017] font-bold uppercase text-xs">
               📝 Log a WhatsApp / Offline Deal
             </Text>
-            <Text className="text-surface-400 text-xs mt-1">
+            <Text className="text-surface-400 text-[10px] uppercase mt-1">
               Track deals made outside the app
             </Text>
           </TouchableOpacity>

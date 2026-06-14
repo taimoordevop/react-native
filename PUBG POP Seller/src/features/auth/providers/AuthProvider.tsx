@@ -1,13 +1,13 @@
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { Alert } from 'react-native';
 
 import { authService } from '@/features/auth/services/authService';
 import { useAuthStore } from '@/features/auth/store/authStore';
-import { auth } from '@/lib/firebase';
+import { COLLECTION } from '@/constants';
+import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/shared/types';
-
-/** Max ms to wait for Firestore profile fetch before giving up */
-const FETCH_TIMEOUT_MS = 8_000;
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -32,16 +32,6 @@ export const useCurrentUser = (): UserProfile | null => useContext(AuthContext).
 
 interface AuthProviderProps {
   children: ReactNode;
-}
-
-/** Wraps a promise with a timeout — rejects if not resolved within ms */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms),
-    ),
-  ]);
 }
 
 /** Build a minimal fallback UserProfile from a FirebaseUser when Firestore is unavailable */
@@ -100,8 +90,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     }, 3000);
 
+    let unsubscribeDoc: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isMounted.current) return;
+
+      // Clean up previous document listener if any
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
 
       if (!firebaseUser) {
         console.log('[AUTH] No Firebase session — will redirect to login');
@@ -126,37 +124,100 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       isFirstLoad.current = false;
 
-      try {
-        console.log('[AUTH] Fetching Firestore profile...');
-        const profile = await withTimeout(
-          authService.getUserProfile(firebaseUser.uid),
-          FETCH_TIMEOUT_MS,
-        );
+      // Set up real-time listener for profile changes
+      const docRef = doc(db, COLLECTION.USERS, firebaseUser.uid);
+      unsubscribeDoc = onSnapshot(
+        docRef,
+        async (snap) => {
+          if (!isMounted.current) return;
+          clearTimeout(safetyTimer);
 
-        if (!isMounted.current) return;
-        clearTimeout(safetyTimer);
+          if (snap.exists()) {
+            const profile = { id: snap.id, ...snap.data() } as UserProfile;
+            console.log('[AUTH] Profile real-time update — role:', profile.role, '| isBanned:', profile.isBanned);
 
-        if (profile) {
-          console.log('[AUTH] Profile loaded — role:', profile.role, '| onboarding:', profile.onboardingCompleted);
-          setUser(profile);
-        } else {
-          console.warn('[AUTH] No Firestore doc — using fallback profile');
-          setUser(buildFallbackProfile(firebaseUser));
+            if (profile.isBanned) {
+              console.warn('[AUTH] Banned user detected — signing out');
+              if (unsubscribeDoc) {
+                unsubscribeDoc();
+                unsubscribeDoc = null;
+              }
+              await authService.signOut();
+              signOut();
+              Alert.alert(
+                'Account Blocked',
+                'Your account has been blocked by the administrator. Please contact support.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+
+            setUser(profile);
+          } else {
+            // Document does not exist in Firestore. Check if this is a brand new signup in progress.
+            const metadata = firebaseUser.metadata;
+            const creationTime = new Date(metadata.creationTime || 0).getTime();
+            const now = Date.now();
+            const isBrandNew = (now - creationTime) < 30_000; // 30 seconds threshold
+
+            if (!isBrandNew) {
+              console.warn('[AUTH] Firestore user profile was deleted — signing out');
+              if (unsubscribeDoc) {
+                unsubscribeDoc();
+                unsubscribeDoc = null;
+              }
+              await authService.signOut();
+              signOut();
+              Alert.alert(
+                'Account Deleted',
+                'Your account has been deleted by the administrator.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+
+            console.warn('[AUTH] No Firestore doc for new user — using fallback profile');
+            setUser(buildFallbackProfile(firebaseUser));
+          }
+        },
+        async (err) => {
+          console.error('[AUTH] Profile listener error:', err);
+          if (!isMounted.current) return;
+          clearTimeout(safetyTimer);
+
+          // If listener fails because of permissions (e.g. they were deleted or blocked and rules prevent read), boot them
+          if (err.code === 'permission-denied') {
+            console.warn('[AUTH] Profile permission denied — assuming banned/deleted');
+            if (unsubscribeDoc) {
+              unsubscribeDoc();
+              unsubscribeDoc = null;
+            }
+            await authService.signOut();
+            signOut();
+            Alert.alert(
+              'Session Terminated',
+              'Your account has been deactivated, deleted, or blocked.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+
+          // Use fallback if no user exists locally
+          const currentStoreUser = useAuthStore.getState().user;
+          if (!currentStoreUser) {
+            setUser(buildFallbackProfile(firebaseUser));
+          }
         }
-      } catch (err) {
-        if (!isMounted.current) return;
-        clearTimeout(safetyTimer);
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[AUTH] Profile fetch failed:', msg, '— using fallback');
-        setUser(buildFallbackProfile(firebaseUser));
-        setError(msg);
-      }
+      );
     });
 
     return () => {
       console.log('[AUTH] Unsubscribing');
       clearTimeout(safetyTimer);
       unsubscribe();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+      }
     };
   }, [setUser, setLoading, setError, signOut, rememberMe]);
 

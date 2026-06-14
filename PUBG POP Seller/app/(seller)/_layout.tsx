@@ -16,18 +16,73 @@ export default function SellerLayout() {
   const isAllowed = pathname.endsWith('/dashboard') || pathname.endsWith('/profile');
   if (user?.sellerApprovalStatus === 'pending' && !isAllowed) {
     return (
-      <SafeAreaView className="flex-1 bg-surface justify-center items-center p-6">
-        <View className="bg-surface-100 border border-yellow-500/20 rounded-2xl p-6 items-center w-full max-w-xs">
-          <Text className="text-5xl mb-4">🔒</Text>
-          <Text className="text-white text-xl font-bold mb-2 text-center">Feature Locked</Text>
-          <Text className="text-surface-300 text-sm text-center mb-6 leading-5">
-            This feature is locked while your Seller approval is under review. Full access will be granted after verification.
+      <SafeAreaView className="flex-1 bg-[#090d16] justify-center items-center p-6 relative">
+        {/* Background elements */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }} pointerEvents="none">
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            {[...Array(12)].map((_, i) => (
+              <View key={i} style={{ width: 1, height: '100%', backgroundColor: '#D4A017' }} />
+            ))}
+          </View>
+          <View style={{ justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            {[...Array(20)].map((_, i) => (
+              <View key={i} style={{ height: 1, width: '100%', backgroundColor: '#D4A017' }} />
+            ))}
+          </View>
+        </View>
+
+        <View 
+          style={{
+            position: 'absolute',
+            top: 24,
+            left: 24,
+            right: 24,
+            bottom: 24,
+            borderWidth: 1,
+            borderColor: 'rgba(212, 160, 23, 0.15)',
+          }}
+          pointerEvents="none"
+        >
+          <View style={{ position: 'absolute', top: 0, left: 0, width: 12, height: 12, borderLeftWidth: 2, borderTopWidth: 2, borderColor: '#D4A017' }} />
+          <View style={{ position: 'absolute', top: 0, right: 0, width: 12, height: 12, borderRightWidth: 2, borderTopWidth: 2, borderColor: '#D4A017' }} />
+          <View style={{ position: 'absolute', bottom: 0, left: 0, width: 12, height: 12, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017' }} />
+          <View style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#D4A017' }} />
+        </View>
+
+        <View 
+          style={{
+            backgroundColor: 'rgba(30, 41, 59, 0.4)',
+            borderWidth: 1.5,
+            borderColor: '#D4A017',
+            borderRadius: 4,
+            padding: 24,
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: 300,
+          }}
+        >
+          <Text className="text-4xl mb-4 text-[#D4A017]">⚠️</Text>
+          <Text style={{ letterSpacing: 2 }} className="text-white text-lg font-bold mb-2 text-center uppercase">
+            PROTOCOL LOCK
+          </Text>
+          <Text className="text-surface-300 text-xs text-center mb-6 leading-5">
+            This sector is locked while your Seller approval is under review. Complete clearance will be granted post verification.
           </Text>
           <TouchableOpacity
             onPress={() => router.replace('/(seller)/dashboard')}
-            className="bg-yellow-500 rounded-xl py-3.5 px-6 w-full items-center"
+            style={{
+              borderWidth: 1.5,
+              borderColor: '#D4A017',
+              borderRadius: 2,
+              backgroundColor: 'rgba(212, 160, 23, 0.15)',
+              paddingVertical: 12,
+              width: '100%',
+              alignItems: 'center',
+            }}
           >
-            <Text className="text-black font-semibold text-sm">Back to Dashboard</Text>
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, letterSpacing: 1.5 }}>
+              RETURN TO DASHBOARD
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -38,7 +93,7 @@ export default function SellerLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#0f172a' },
+        contentStyle: { backgroundColor: '#090d16' },
         animation: 'slide_from_right',
       }}
     >

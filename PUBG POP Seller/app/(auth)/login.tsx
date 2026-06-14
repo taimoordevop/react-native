@@ -149,9 +149,17 @@ export default function LoginScreen() {
         setAuthLoading(true);
       }
       router.replace('/');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      console.error('[AUTH] Login error:', msg);
+    } catch (err: any) {
+      let msg = 'Login failed. Please try again.';
+      if (err.code === 'auth/invalid-credential' ||
+          err.code === 'auth/wrong-password' ||
+          err.code === 'auth/user-not-found' ||
+          err.code === 'auth/invalid-email') {
+        msg = 'Your email or password is invalid.';
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      console.error('[AUTH] Login error:', msg, err);
       setError(msg);
     } finally {
       setLoading(false);
